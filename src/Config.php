@@ -12,7 +12,8 @@ final class Config
         if ($v === false || $v === '') {
             $v = $_SERVER[$key] ?? $_ENV[$key] ?? null;
         }
-        return ($v === null || $v === '' || $v === false) ? $default : (string) $v;
+        $v = ($v === null || $v === false) ? null : trim((string) $v);
+        return ($v === null || $v === '') ? $default : $v;
     }
 
     public static function require(string $key): string

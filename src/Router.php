@@ -12,8 +12,9 @@ final class Router
             return true;
         });
         set_exception_handler(static function (\Throwable $e): void {
-            error_log('Unhandled: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
-            Http::error(500, 'Server error'); // never leak details
+            error_log('Unhandled: ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            // Details are never leaked, except while troubleshooting with APP_DEBUG=1 (remove it afterwards).
+            Http::error(500, Config::get('APP_DEBUG') === '1' ? 'Server error: ' . get_class($e) . ': ' . $e->getMessage() : 'Server error');
         });
 
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -33,7 +34,23 @@ final class Router
             $s->ok() ? App::shell($s) : Http::redirect('/');
         }
         if ($path === '/healthz') {
-            Http::json(['ok' => true]);
+            // Safe diagnostics: booleans and status codes only, never values.
+            $url = Config::get('SUPABASE_URL');
+            $auth = null;
+            if ($url !== null && function_exists('curl_init')) {
+                try {
+                    [$auth] = Supabase::call('GET', '/auth/v1/health', null);
+                } catch (\Throwable) {
+                    $auth = -1;
+                }
+            }
+            Http::json([
+                'ok' => true,
+                'php' => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
+                'curl' => function_exists('curl_init'),
+                'env' => ['SUPABASE_URL' => $url !== null, 'SUPABASE_ANON_KEY' => Config::get('SUPABASE_ANON_KEY') !== null, 'SUPABASE_JWT_SECRET' => Config::get('SUPABASE_JWT_SECRET') !== null],
+                'supabase_auth_http' => $auth,
+            ]);
         }
 
         // ---- auth
