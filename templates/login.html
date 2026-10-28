@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Sign in · PAF tool</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style nonce="{{NONCE}}">
+:root{--bg:#eef1f5;--surface:#fff;--fg:#16212f;--muted:#5b6b80;--line:#b9c4d4;--brand:#16407a;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1621;--surface:#172131;--fg:#e8edf5;--muted:#9fb0c6;--line:#3c4d69;--brand:#6ea0e6;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+main{width:min(380px,calc(100% - 32px));background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:28px}
+.mark{display:inline-block;background:var(--brand);color:#fff;font-weight:600;border-radius:6px;padding:3px 10px;letter-spacing:.04em}
+h1{font-size:20px;margin:14px 0 4px}p{margin:0 0 18px;color:var(--muted);font-size:13px}
+label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px;font-weight:500}
+input{width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:inherit;font:inherit}
+input:focus-visible,button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+button{margin-top:18px;width:100%;padding:11px;border:0;border-radius:6px;background:var(--brand);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.6;cursor:default}
+#err{min-height:20px;margin-top:12px;color:var(--err);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <span class="mark">Ei6</span>
+  <h1>PAF tool</h1>
+  <p>Sign in with your company account.</p>
+  <form id="f" autocomplete="on" novalidate>
+    <label for="em">E-mail</label>
+    <input id="em" name="email" type="email" autocomplete="username" required maxlength="254" autofocus>
+    <label for="pw">Password</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" required maxlength="200">
+    <button id="go" type="submit">Sign in</button>
+    <div id="err" role="alert" aria-live="polite"></div>
+  </form>
+</main>
+<script nonce="{{NONCE}}">
+const f=document.getElementById('f'),err=document.getElementById('err'),go=document.getElementById('go');
+f.addEventListener('submit',async e=>{
+  e.preventDefault(); err.textContent=''; go.disabled=true;
+  try{
+    const r=await fetch('/api/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Requested-With':'ei6'},
+      body:JSON.stringify({email:f.email.value,password:f.password.value})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok){f.password.value='';location.replace('/app');return}
+    err.textContent=d.error||'Could not sign in';
+  }catch(_){err.textContent='Network error. Try again.'}
+  go.disabled=false;
+});
+</script>
+</body>
+</html>

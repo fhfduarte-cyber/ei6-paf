@@ -1,0 +1,43 @@
+import json, urllib.request
+from playwright.sync_api import sync_playwright
+urllib.request.urlopen('http://127.0.0.1:54321/__reset').read()
+B = 'http://127.0.0.1:8081'
+def route(r):
+    u = r.request.url
+    if 'exceljs' in u: r.fulfill(path='/tmp/xl/node_modules/exceljs/dist/exceljs.min.js', content_type='text/javascript')
+    elif u.startswith(B) or u.startswith('http://127.0.0.1'): r.continue_()
+    else: r.abort()
+with sync_playwright() as p:
+    b = p.chromium.launch(); ctx = b.new_context(viewport={'width': 1400, 'height': 1000}, accept_downloads=True); pg = ctx.new_page()
+    errs = []; csp = []
+    pg.on('pageerror', lambda e: errs.append(str(e)))
+    pg.on('console', lambda m: (csp.append(m.text) if 'Content Security Policy' in m.text else (errs.append(m.text) if m.type == 'error' and 'ERR_FAILED' not in m.text else None)))
+    pg.route('**/*', route)
+    pg.goto(B + '/'); pg.fill('#em', 'bob@ei6.test'); pg.fill('#pw', 'wrong'); pg.click('#go'); pg.wait_for_timeout(700)
+    print('bad login msg:', pg.inner_text('#err'))
+    pg.fill('#pw', 'bob-pass'); pg.click('#go'); pg.wait_for_url('**/app'); pg.wait_for_timeout(800)
+    print('who:', pg.inner_text('#who'), '| title:', pg.title())
+    pg.fill('#paf-no', 'PAF-77'); pg.fill('#paf-cust', 'ACME')
+    pg.locator('[data-pf=desc]').nth(0).fill('Seal ring'); pg.locator('[data-pf=no]').nth(0).fill('12345-A')
+    pg.locator('.paftab .add').first.click(); pg.locator('[data-pf=desc]').nth(1).fill('Bushing'); pg.locator('[data-pf=no]').nth(1).fill('99887-B')
+    pg.click('#pafnav button[data-pg="0"]'); pg.wait_for_timeout(300)
+    f = pg.locator('#tab-blocks .mfin').nth(0); f.locator('[data-f=qq]').fill('10'); f.locator('[data-f=qp]').fill('800')
+    pg.check('#tab-blocks [data-om=blocks]'); t = pg.locator('#tab-blocks .qtab'); t.locator('[data-omr=v]').fill('Vendor <b>A</b>'); t.locator('[data-omr=p]').fill('400'); t.locator('[data-omr=o]').fill('x" onmouseover="alert(1)')
+    pg.click('#pafnav button[data-pg="1"]'); pg.wait_for_timeout(300); pg.click('#tabbtn-rods')
+    pg.click('#pafnav button[data-pg="-1"]'); pg.click('#paf-save'); pg.wait_for_timeout(900); print('save msg:', pg.inner_text('#paf-msg'))
+    pg.click('#paf-save'); pg.wait_for_timeout(700); print('resave msg:', pg.inner_text('#paf-msg'))
+    pg.reload(); pg.wait_for_timeout(900)
+    print('after reload PAF # field:', repr(pg.input_value('#paf-no')))
+    pg.click('#paf-open'); pg.wait_for_timeout(600); print('list rows:', pg.locator('.paflist tbody tr').count(), pg.locator('.paflist tbody tr').first.inner_text().replace('\n', ' '))
+    pg.locator('.paflist tbody tr button', has_text='Open').first.click(); pg.wait_for_timeout(900)
+    print('opened:', pg.inner_text('#paf-msg'), '| tabs:', pg.locator('#pafnav button').all_inner_texts())
+    pg.click('#pafnav button[data-pg="0"]'); pg.wait_for_timeout(400)
+    print('om rows restored:', pg.locator('#tab-blocks .qtab tbody tr').count(), '| vendor value:', pg.locator('#tab-blocks [data-omr=v]').input_value(), '| price:', pg.locator('#tab-blocks [data-omr=p]').input_value())
+    print('injected handler attrs:', pg.evaluate("document.querySelectorAll('[onmouseover]').length"))
+    pg.click('#pafnav button[data-pg="1"]'); print('part2 tab rods visible:', pg.locator('#tab-rods').is_visible())
+    pg.click('#pafnav button[data-pg="-1"]')
+    with pg.expect_download(timeout=30000) as d: pg.click('#paf-gen')
+    d.value.save_as('/tmp/pafout/e2e.xlsx'); pg.wait_for_timeout(400); print('xlsx:', d.value.suggested_filename, '|', pg.inner_text('#paf-msg'))
+    pg.click('#signout'); pg.wait_for_url(B + '/'); print('signed out ->', pg.url)
+    pg.goto(B + '/app'); print('/app after logout ->', pg.url)
+    print('CSP violations:', csp); print('errors:', errs); b.close()
