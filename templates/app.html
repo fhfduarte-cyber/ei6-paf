@@ -80,6 +80,11 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:1
 .kpi .v{font-size:18px;font-weight:500;overflow-wrap:anywhere}
 .kpi .s{font-size:12px;color:var(--fg-muted)}
 
+.fsbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 14px;border-top:1px solid var(--line,#d9e0ea);background:var(--surface)}
+.fsbar .fsl{font-size:12px;color:var(--muted,#5b6b80);margin-right:4px}
+.fsb{font:inherit;font-size:12px;padding:4px 10px;border:1px solid var(--line,#d9e0ea);border-radius:999px;background:var(--surface);color:var(--fg);cursor:pointer}
+.fsb[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:#fff}
+.fssel{font:inherit;font-size:12px;padding:4px 8px}
 .stage{position:relative;height:440px;background:var(--surface-2);border-radius:0 0 var(--radius) var(--radius);touch-action:none;cursor:grab}
 .stage:active{cursor:grabbing}
 .stage canvas{width:100%;height:100%;display:block}
@@ -584,7 +589,7 @@ function dgOk(cat,r){
       try{res=isR?rSolve():qSolve()}finally{if(isR)rRead=o;else qRead=o}
     }
   }catch(e){return true}finally{MIXON=saveMix}
-  return !res.error;
+  return !res.error&&(!res.agg||res.agg.N===1);   // a card is offered only when ONE Feedstock piece holds the whole order
 }
 function dgUpdate(cat,spec){
   const box=$('dg-'+cat+'-body'); if(!box)return;
@@ -741,8 +746,24 @@ function failMsg(f,label){
   if(!f.mx.n) return `Not even one ${label} piece fits in the Feedstock block. With allowance, the piece measures ${Lc(f.pc[0],1)} × ${Lc(f.pc[1],1)} × ${Lu(f.pc[2],1)} and the Feedstock is ${nd}. Reduce the dimensions or the allowance.`;
   return `The ${f.Q} ${label} pieces do not fit in 1 Feedstock block (${nd}). <b>Maximum per block: ${f.mx.n} pieces</b>, in a ${f.mx.g.join(' × ')} arrangement (W × H × L). ${f.Q} pieces would need ${Math.ceil(f.Q/f.mx.n)} blocks.`;
 }
+function bAgg(list,I){let N=0;list.forEach(e=>N+=e.n);return {N,Q:I.Q,list}}
 function solve(){
-  const I=readIn();
+  const I=readIn(), r=solveI(I);
+  if(!r.error){r.agg=bAgg([{n:1,r}],I);return r}
+  if(I.on2||!(I.Q>1)||[...I.N,...I.P,I.D,I.Q].some(x=>!(x>0))) return r;
+  /* The quantity does not fit in one Feedstock block: full blocks (max pieces) + one last block with the remainder, each solved on its own. */
+  const J={...I,noMix:true};
+  let mx=maxPerBlock(I.N,I.P.map((p,i)=>p+I.A[i])).n; if(mx<1) return r;
+  mx=Math.min(mx,I.Q-1);
+  let full=null; while(mx>=1){full=solveI({...J,Q:mx}); if(!full.error)break; mx--}
+  if(!full||full.error) return r;
+  const nFull=Math.floor(I.Q/mx), rem=I.Q-nFull*mx, last=rem?solveI({...J,Q:rem}):null;
+  if(last&&last.error) return r;
+  const list=[{n:nFull,r:full}]; if(last)list.push({n:1,r:last});
+  const res=Object.assign({},full); res.agg=bAgg(list,I); res.agg.mx=mx; res.agg.nFull=nFull; res.agg.rem=rem;
+  MIXON=false; return res;
+}
+function solveI(I){
   const bad=a=>a.some(x=>!(x>0));
   if(bad([...I.N,...I.P,I.D,I.Q])) return {error:'Fill in all dimensions, the density and the quantity with values greater than zero.'};
   const dems=[{id:0,P:I.P,A:I.A,Q:I.Q}];
@@ -762,7 +783,7 @@ function solve(){
     base.orderTried=[ra.error?null:ra.opts[0].floss,rb.error?null:rb.opts[0].floss];
     base.firstOrd=ord;
   }else base=runDems(I,dems,14);
-  if(base.error||I.on2||I.Q<2) return base;
+  if(base.error||I.on2||I.Q<2||I.noMix) return base;
   return tryMix(I,base);
 }
 /* Mixed orientation (Blocks, single demand): the Q pieces are split in Group A (Q1) and Group B (Q2). Group A gets its V'' at the origin,
@@ -933,30 +954,37 @@ function render(){
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('BL',null);return}
   if(state.sel>=r.opts.length)state.sel=0;
   const opt=r.opts[state.sel], I=r.I, fl=opt.fl, dual=!!r.second, cdual=dual&&!r.mix;
+  const A=r.agg, QT=A.Q, multi=A.N>1, grpO=A.N>12;
+  const optE=e=>e.r.opts[Math.min(state.sel,e.r.opts.length-1)];
+  const flE=e=>optE(e).fl;
+  const volE=e=>{const o=optE(e);return o.envs.reduce((t,v)=>t+v.size[0]*v.size[1]*v.size[2]/1e9,0)};
+  const T={kg:0,loss:0,env:0,pcs:0,vn:0}; A.list.forEach(e=>{const o=optE(e);T.kg+=e.n*o.fl.reduce((t,x)=>t+x.kg,0);T.loss+=e.n*o.floss;T.env+=e.n*volE(e);T.pcs+=e.n*e.r.volPieces;T.vn+=e.n*e.r.volN});
+  const bItems=[]; A.list.forEach((e,ei)=>{const f=flE(e); if(!f.some(o=>!o.empty))return; if(grpO)bItems.push({fl:f,m:e.n,f:-1,lab:bItems.length+1}); else for(let k=0;k<e.n;k++)bItems.push({fl:f,m:1,f:bItems.length,lab:bItems.length+1})});
   dgUpdate('BL',{list:opt.envs.map(e=>({label:dn(e.id)+' · '+Lc(e.size[0],0)+' × '+Lc(e.size[1],0)+' × '+Lc(e.size[2],0),mm:e.size}))});
   const perm=r.perm.map(i=>AX[i]).join(' ');
-  const totKg=fl.reduce((s,o)=>s+o.kg,0), lossKg=opt.floss;
+  const totKg=T.kg, lossKg=T.loss;
   const mat=PRICES[Math.min(state.mat,PRICES.length-1)];
-  const cd=r.mix?[{id:0,Q:I.Q,kg:kgOf[0],w:kgOf[0]*I.Q}]:r.dems.map(d=>({id:d.id,Q:d.Q,kg:kgOf[d.id],w:kgOf[d.id]*d.Q})).sort((a,b)=>a.id-b.id);
+  const cd=r.mix?[{id:0,Q:I.Q,kg:kgOf[0],w:kgOf[0]*I.Q}]:r.dems.map(d=>{const Q=multi?QT:d.Q;return {id:d.id,Q,kg:kgOf[d.id],w:kgOf[d.id]*Q}}).sort((a,b)=>a.id-b.id);
   const wSum=cd.reduce((s,d)=>s+d.w,0);
   cd.forEach(d=>{d.loss=lossKg*d.w/wSum;d.cost=(d.w+d.loss)*mat.kg/d.Q});
   const calcKg=wSum+lossKg, lotCost=calcKg*mat.kg;
   const money=n=>'$ '+nf(n,2);
   const envVol=e=>e.size[0]*e.size[1]*e.size[2]/1e9;
-  const volEnv=opt.envs.reduce((s,e)=>s+envVol(e),0);
+  const volEnv=T.env;
   const lg=(col,txt,dash)=>`<span><i class="${dash?'dash':''}" style="border-color:var(${col});background:color-mix(in srgb,var(${col}) 35%,transparent)"></i>${txt}</span>`;
   main.innerHTML=`
   <div class="kpis">
-    ${opt.envs.map(e=>`<div class="kpi" style="border-top:3px solid var(${e.col})"><span class="l">V'' · ${dn(e.id)}</span><span class="v num">${Lc(e.size[0],0)} × ${Lc(e.size[1],0)} × ${Lc(e.size[2],0)}</span><span class="s">${LUl()} · arrangement ${e.grid.join(' × ')} (${e.q} pcs)</span></div>`).join('')}
-    <div class="kpi"><span class="l">Useful pieces / Feedstock</span><span class="v num">${nf(r.volPieces/r.volN*100,1)}%</span><span class="s">${Wu(r.volPieces*I.D,1)} of ${Wu(r.volN*I.D,1)}</span></div>
-    <div class="kpi"><span class="l">V'' / Feedstock</span><span class="v num">${nf(volEnv/r.volN*100,1)}%</span><span class="s">${Wu(volEnv*I.D,1)} with allowance</span></div>
-    <div class="kpi"><span class="l">Offall total</span><span class="v num">${Wu(totKg,1)}</span><span class="s">${nf(totKg/(r.volN*I.D)*100,1)}% of Feedstock</span></div>
+    ${opt.envs.map(e=>`<div class="kpi" style="border-top:3px solid var(${e.col})"><span class="l">V'' · ${dn(e.id)}</span><span class="v num">${Lc(e.size[0],0)} × ${Lc(e.size[1],0)} × ${Lc(e.size[2],0)}</span><span class="s">${LUl()} · arrangement ${e.grid.join(' × ')} (${e.q} pcs${multi?' per full block':''})</span></div>`).join('')}
+    ${multi?`<div class="kpi"><span class="l">Feedstock pieces</span><span class="v num">${A.N} pcs</span><span class="s">${A.nFull} full (${A.mx} pcs each)${A.rem?' + 1 last ('+A.rem+' pcs)':''}</span></div>`:''}
+    <div class="kpi"><span class="l">Useful pieces / Feedstock</span><span class="v num">${nf(T.pcs/T.vn*100,1)}%</span><span class="s">${Wu(T.pcs*I.D,1)} of ${Wu(T.vn*I.D,1)}</span></div>
+    <div class="kpi"><span class="l">V'' / Feedstock</span><span class="v num">${nf(volEnv/T.vn*100,1)}%</span><span class="s">${Wu(volEnv*I.D,1)} with allowance</span></div>
+    <div class="kpi"><span class="l">Offall total</span><span class="v num">${Wu(totKg,1)}</span><span class="s">${nf(totKg/(T.vn*I.D)*100,1)}% of Feedstock${multi?' · total of '+A.N+' pcs':''}</span></div>
   </div>
 
   <section class="card ori pl${PL.c?' collapsed':''}">
     <header class="orhead plhead" role="button" tabindex="0" aria-expanded="${!PL.c}"><h2 style="display:flex;align-items:center;gap:8px"><i class="chev" aria-hidden="true"></i>Placement in the Feedstock block</h2>
       <div class="legend"><span><i style="border-color:var(--nominal);background:var(--nominal-fill)"></i>Feedstock</span>${opt.envs.map((e,k)=>lg(e.col,k===0?`V'' ${dn(e.id)} (pieces + allowance, split piece by piece)`:`V'' ${dn(e.id)}`,true)).join('')}<span style="flex-basis:100%;height:0"></span>${fl.map((o,i)=>lg(COLORS[i%COLORS.length],`Offall ${i+1}`)).join('')}</div></header>
-    <div class="stage" id="stage"><canvas id="cv" aria-label="3D drawing of the Feedstock block with the demanded volumes and the Offalls"></canvas><span class="hint">V'' orientation in the Feedstock: axes ${perm}${dual?` · ${dn(r.first.id)} is cut first (the order with the lowest loss)`:''} · drag to rotate</span></div>
+    ${fsBar('b',A.N)}<div class="stage" id="stage"><canvas id="cv" aria-label="3D drawing of the Feedstock block with the demanded volumes and the Offalls"></canvas><span class="hint">V'' orientation in the Feedstock: axes ${perm}${dual?` · ${dn(r.first.id)} is cut first (the order with the lowest loss)`:''} · drag to rotate</span></div>
   </section>
 
   <section class="card ori${OR.c?' collapsed':''}" id="orient">
@@ -982,13 +1010,13 @@ function render(){
     <header style="flex-wrap:wrap"><h2>Devaluation</h2><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto;justify-content:flex-end">${devSeg('b')}<span class="tag">Option ${state.sel+1} · cut ${opt.order.map(i=>AX[i]).join(' → ')}${dual?` + ${dn(r.second.id)} from leftover ${opt.host+1}`:''}</span></span></header>
     <div class="tablewrap"><table>
       <thead><tr><th>Block</th><th class="r">W × H × L (${LUl()})</th><th class="r">Weight</th><th>Rule applied</th><th class="r">Depreciation</th><th class="r">${DVH()}</th></tr></thead>
-      <tbody>${fl.map((o,i)=>o.empty?`<tr><td><b style="color:var(${COLORS[i%COLORS.length]})">Offall ${i+1}</b></td><td colspan="5" class="note">No leftover: the Feedstock dimension matches V'' in this cut.</td></tr>`:`
-        <tr data-i="${i}"><td><b style="color:var(${COLORS[i%COLORS.length]})">Offall ${i+1}</b></td>
+      <tbody>${bItems.length?bItems.map(bi=>bi.fl.map((o,i)=>o.empty?`<tr><td><b style="color:var(${COLORS[i%COLORS.length]})">${multi?'Feedstock '+bi.lab+' · ':''}Offall ${i+1}</b></td><td colspan="5" class="note">No leftover: the Feedstock dimension matches V'' in this cut.</td></tr>`:`
+        <tr data-i="${i}" data-f="${bi.f}"><td><b style="color:var(${COLORS[i%COLORS.length]})">${multi?'Feedstock '+bi.lab+(bi.m>1?' ×'+bi.m:'')+' · ':''}Offall ${i+1}</b></td>
         <td class="r num">${Lc(o.size[0],0)} × ${Lc(o.size[1],0)} × ${Lc(o.size[2],0)}</td>
-        <td class="r num">${Wu(o.kg,1)}</td>
+        <td class="r num">${Wu(o.kg*bi.m,1)}</td>
         <td class="num">${o.slot?'Unused slot(s) in V\'\' · ':''}Band ${o.m.band} · thk ${nf(o.m.small,1)}" · ${o.m.ok?'meets':'doesn\'t meet'} dim. → ${usd(o.m.v)} <span class="pctnote">(material ${usd(o.m.P)})</span></td>
         <td class="r"><span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span></td>
-        <td class="r num">${DV(o.dev*o.kg,'BL')}</td></tr>`).join('')}</tbody>
+        <td class="r num">${DV(o.dev*o.kg*bi.m,'BL')}</td></tr>`).join('')).join(''):`<tr><td><b>Offall</b></td><td colspan="5" class="note">No leftover: the Feedstock dimension matches V'' in this cut.</td></tr>`}</tbody>
       <tfoot><tr><td>Total</td><td></td><td class="r num">${Wu(totKg,1)}</td><td>${DEV$?'Total amount devalued':'Weighted depreciated weight'}</td><td class="r"><span class="pill ${classOf(totKg?lossKg/totKg:0)}">${pct(totKg?lossKg/totKg:0)}</span></td><td class="r num">${DV(lossKg,'BL')}</td></tr></tfoot>
     </table></div>
     <details><summary>How the depreciation is found</summary>
@@ -1043,17 +1071,17 @@ function render(){
    if(h){const tg=()=>{CS.c=!CS.c;cs.classList.toggle('collapsed',CS.c);h.setAttribute('aria-expanded',String(!CS.c));try{localStorage.setItem('cs-collapsed',CS.c?'1':'0')}catch(e){}};
      h.onclick=tg;h.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tg()}}}}
   // offalls
-  $('offs').innerHTML=fl.map((o,i)=>`
-    <article class="off ${state.hi===i?'hi':''}" data-i="${i}" style="--c:var(${COLORS[i%COLORS.length]})">
-      <h3><span>Offall ${i+1}</span>${o.empty?'<span class="note">no leftover</span>':`<span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span>`}</h3>
-      ${o.empty?'<p class="note" style="margin:0">This cut leaves no material.</p>':`
+  $('offs').innerHTML=bItems.length?bItems.map(bi=>bi.fl.map((o,i)=>o.empty?'':`
+    <article class="off ${state.hi===i&&bi.f===FSEL.b?'hi':''}" data-i="${i}" data-f="${bi.f}" style="--c:var(${COLORS[i%COLORS.length]})">
+      <h3><span>${multi?'Feedstock '+bi.lab+(bi.m>1?' (× '+bi.m+')':'')+' · ':''}Offall ${i+1}</span><span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span></h3>
       <dl class="dl num"><dt>W${i+1}</dt><dd>${Lu(o.size[0],1)}</dd><dt>H${i+1}</dt><dd>${Lu(o.size[1],1)}</dd><dt>L${i+1}</dt><dd>${Lu(o.size[2],1)}</dd><dt>Volume</dt><dd>${Vu(o.vol)}</dd></dl>
-      <div class="weight num"><small>P = V × D</small><span>${Wu(o.kg,1)}</span></div>`}
-    </article>`).join('');
+      <div class="weight num"><small>P = V × D${bi.m>1?' · each':''}</small><span>${Wu(o.kg,1)}</span></div>
+    </article>`).join('')).join(''):'<div class="note">This cut leaves no material.</div>';
+  if(multi)$('offs').insertAdjacentHTML('beforeend',`<p class="note" style="flex-basis:100%;margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full block${A.nFull>1?'s':''} with ${A.mx} pcs${A.rem?` + 1 last block with ${A.rem} pcs`:''}. Each Feedstock piece has its own Offalls, listed in the Devaluation table. The orientation and cutting-sequence tables describe a full block. Total Offall ${Wu(totKg,1)}.</p>`);
   document.querySelectorAll('.off,#main tbody tr[data-i]').forEach(el=>{
-    el.onmouseenter=()=>{state.hi=+el.dataset.i;paint()};el.onmouseleave=()=>{state.hi=-1;paint()};
+    if(el.dataset.f!==undefined&&+el.dataset.f!==FSEL.b)return; el.onmouseenter=()=>{state.hi=+el.dataset.i;paint()};el.onmouseleave=()=>{state.hi=-1;paint()};
   });
-  paint();
+  paint(); fsBind('b',()=>{state.hi=-1;render()});
   const stage=$('stage');
   let drag=null;
   stage.onpointerdown=e=>{drag=[e.clientX,e.clientY];stage.setPointerCapture(e.pointerId)};
@@ -1063,9 +1091,10 @@ function render(){
 function paint(mainOnly){
   const r=state.res; if(!r||r.error)return;
   const opt=r.opts[state.sel];
-  const cv=$('cv'); if(cv)draw(cv,sceneOf(r,opt,state.hi),state.view,{labels:true});
+  const fe=r.agg?fsRes(r.agg,FSEL.b).r:r, fo=fe.opts[Math.min(state.sel,fe.opts.length-1)];
+  const cv=$('cv'); if(cv)draw(cv,sceneOf(fe,fo,state.hi),state.view,{labels:true});
   if(mainOnly)return;
-  document.querySelectorAll('.off').forEach(el=>el.classList.toggle('hi',+el.dataset.i===state.hi));
+  document.querySelectorAll('.off').forEach(el=>el.classList.toggle('hi',+el.dataset.i===state.hi&&(el.dataset.f===undefined||+el.dataset.f===FSEL.b)));
   document.querySelectorAll('#opts .opt canvas').forEach((c,i)=>draw(c,sceneOf(r,r.opts[i],-1),{yaw:-0.62,pitch:0.42},{zoom:1.3}));
 }
 document.querySelectorAll('#tab-blocks .side input').forEach(i=>i.addEventListener('input',()=>{state.sel=0;render()}));
@@ -1326,10 +1355,26 @@ function drawRod(cv,sc,view,o={}){
     {const Ra=R*(k.n%2?1:-1);cutArrow(c,P(k.z,Ra,0),P(k.z+k.dir*k.len,Ra,0),k.n)}
   });
 }
-function rScene(r){
+/* ---- Feedstock piece selector for the 3D drawing: piece k -> the solved entry (full rods first, then the last one) ---- */
+var FSEL={b:0,r:0,q:0};
+function fsRes(A,k){let c=0;for(let i=0;i<A.list.length;i++){c+=A.list[i].n;if(k<c)return {r:A.list[i].r,c:i+1}}const e=A.list[A.list.length-1];return {r:e.r,c:A.list.length}}
+function fsBar(key,N){
+  if(N<2)return ''; if(FSEL[key]>=N)FSEL[key]=0;
+  const cur=FSEL[key];
+  const body=N<=12?Array.from({length:N},(_,k)=>`<button type="button" class="fsb" data-k="${k}" aria-pressed="${k===cur}">Feedstock ${k+1}</button>`).join('')
+    :`<select class="fssel" aria-label="Feedstock piece shown in 3D">${Array.from({length:N},(_,k)=>`<option value="${k}" ${k===cur?'selected':''}>Feedstock ${k+1} of ${N}</option>`).join('')}</select>`;
+  return `<div class="fsbar" data-fs="${key}"><span class="fsl">3D view</span>${body}</div>`;
+}
+function fsBind(key,fn){
+  const bar=document.querySelector(`.fsbar[data-fs="${key}"]`); if(!bar)return;
+  bar.querySelectorAll('.fsb').forEach(b=>b.onclick=()=>{FSEL[key]=+b.dataset.k;bar.querySelectorAll('.fsb').forEach(x=>x.setAttribute('aria-pressed',x===b));fn()});
+  const sel=bar.querySelector('.fssel'); if(sel)sel.onchange=()=>{FSEL[key]=+sel.value;fn()};
+}
+function rScene(r0,k0){
+  const fe=r0.agg?fsRes(r0.agg,k0||0):{r:r0,c:1}, r=fe.r, oc='--off'+fe.c;
   const parts=[];
   r.segs.forEach(g=>parts.push({z0:g.z0,z1:g.z1,ro:g.r,ri:0,fill:'--nominal',alpha:.07,edge:'--nominal',dash:false,lw:2}));
-  if(r.off) r.off.parts.forEach(g=>parts.push({z0:g.z0,z1:g.z1,ro:g.r,ri:0,fill:'--off1',alpha:.34,edge:'--off1',dash:false,lw:1}));
+  if(r.off) r.off.parts.forEach(g=>parts.push({z0:g.z0,z1:g.z1,ro:g.r,ri:0,fill:oc,alpha:.34,edge:oc,dash:false,lw:1}));
   if(r.ringX) r.ringX.rings.forEach(g=>parts.push({z0:g.z0,z1:g.z1,ro:g.Do/2,ri:g.Di/2,fill:'--demand2',alpha:.22,edge:'--demand2',dash:true,lw:1.5}));
   r.dems.forEach(d=>{const seps=[];for(let k=1;k<d.n;k++)seps.push(d.z0+k*r.Lpc);
     parts.push({z0:d.z0,z1:d.z1,ro:r.I.od/2,ri:r.tube?r.I.id/2:0,fill:'--demand',alpha:.20,edge:'--demand',dash:true,lw:2,seps})});
@@ -1339,7 +1384,7 @@ function rScene(r){
 
 function rPaint(){
   const r=state.rres; if(!r||r.error)return;
-  const cv=$('rcv'); if(cv)drawRod(cv,rScene(r),rstate.view);
+  const cv=$('rcv'); if(cv)drawRod(cv,rScene(r,FSEL.r),rstate.view);
 }
 function rRender(){
   const kgP=rSidebar(); const r=rSolve(); state.rres=r;
@@ -1378,7 +1423,7 @@ function rRender(){
   <section class="card ori pl${PL.c?' collapsed':''}">
     <header class="orhead plhead" role="button" tabindex="0" aria-expanded="${!PL.c}"><h2 style="display:flex;align-items:center;gap:8px"><i class="chev" aria-hidden="true"></i>Placement in the Feedstock rod</h2>
       <div class="legend"><span><i style="border-color:var(--nominal);background:var(--nominal-fill)"></i>Feedstock${I.collar?' (Collar)':''}</span>${lg('--demand',`Demanded ${label} (with allowance, split piece by piece)`,true)}${off?lg('--off1',multi?'Offall (one full rod shown)':'Offall 1'):''}${r.ringX?lg('--demand2','Excess OD stock (machined away, 100% loss)',true):''}</div></header>
-    <div class="stage" id="rstage"><canvas id="rcv" aria-label="3D drawing of the Feedstock rod, the demand and the Offall"></canvas><span class="hint">drag to rotate</span></div>
+    ${fsBar('r',A.N)}<div class="stage" id="rstage"><canvas id="rcv" aria-label="3D drawing of the Feedstock rod, the demand and the Offall"></canvas><span class="hint">drag to rotate</span></div>
   </section>
 
   <section>
@@ -1388,7 +1433,7 @@ function rRender(){
         <dl class="dl num">${oDims(o)}<dt>Volume</dt><dd>${Vu(o.vol)}</dd></dl>
         <div class="weight num"><small>P = V × D${it.m>1?' · each':''}</small><span>${Wu(o.kg,1)}</span></div>
       </article>`}).join(''):`<div class="note">There is no Offall: the cut consumes the whole rod length.</div>`}
-    ${r.ringX?`<p class="note" style="margin:8px 0 0">${ringNote(label,I,r.ringX)}</p>`:''}${cutNote(r)}${multi?`<p class="note" style="margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full rod${A.nFull>1?'s':''} with ${A.mx} pcs (Offall ${A.list[0].offKg>0?Wu(A.list[0].offKg,1):'none'} each)${A.rem?` + 1 last rod with ${A.rem} pcs (Offall ${A.list[1].offKg>0?Wu(A.list[1].offKg,1):'none'})`:''}. The drawing shows one full rod; each Feedstock piece has its own Offall card below. Total Offall ${A.offKg>0?Wu(A.offKg,1):'none'}.</p>`:''}</div>
+    ${r.ringX?`<p class="note" style="margin:8px 0 0">${ringNote(label,I,r.ringX)}</p>`:''}${cutNote(r)}${multi?`<p class="note" style="margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full rod${A.nFull>1?'s':''} with ${A.mx} pcs (Offall ${A.list[0].offKg>0?Wu(A.list[0].offKg,1):'none'} each)${A.rem?` + 1 last rod with ${A.rem} pcs (Offall ${A.list[1].offKg>0?Wu(A.list[1].offKg,1):'none'})`:''}. The drawing shows the Feedstock piece chosen with the buttons above it; each piece has its own Offall card below. Total Offall ${A.offKg>0?Wu(A.offKg,1):'none'}.</p>`:''}</div>
     ${off&&off.type==='collar'?'<p class="note" style="margin:8px 0 0">Collar: starts with the small OD for L small OD and returns to the large OD for L large OD; the sum of the two lengths is the rod length.</p>':''}
   </section>
 
@@ -1429,7 +1474,7 @@ function rRender(){
   </section>`;
   omInit();
   if($('rmat'))$('rmat').onchange=e=>{rstate.mat=+e.target.value;rRender()}; window.__MCHP=window.__MCHP||{};mcSet('rods','r',omPrice('rods',0,pcCost));xcShow('rods');matBind(); mchBind('r');
-  rPaint();
+  rPaint(); fsBind('r',rPaint);
   const st=$('rstage'); let drag=null;
   st.onpointerdown=e=>{drag=[e.clientX,e.clientY];st.setPointerCapture(e.pointerId)};
   st.onpointermove=e=>{if(!drag)return;rstate.view.yaw+=(e.clientX-drag[0])*0.008;rstate.view.pitch=Math.max(-1.4,Math.min(1.4,rstate.view.pitch+(e.clientY-drag[1])*0.008));drag=[e.clientX,e.clientY];rPaint()};
@@ -1467,8 +1512,31 @@ function qSidebar(){
   const mx=I.collar?Math.floor(((I.od<=I.d1+0.01?I.l1+I.l2:I.l2)+1e-6)/Lpc):(I.L>0?Math.floor((I.L+1e-6)/Lpc):null);
   el.innerHTML=`<dt>L with allowance</dt><dd>${Lu(Lpc,1)}</dd><dt>Weight per piece</dt><dd>${Wu(kg,2)}</dd><dt>Total (${I.Q} pcs)</dt><dd><b>${Wu(kg*I.Q,2)}</b></dd>`+(mx!=null?`<dt>Max per Feedstock round</dt><dd>${nf(mx)} pcs</dd>`:'');
 }
+function qAgg(list,I){
+  let N=0,offKg=0,loss=0,nomKg=0,finKg=0,ringKg=0,devOk=true,naMsg='';
+  list.forEach(({n,r})=>{
+    const ok=ROUND_RULES_READY&&r.offs.every(o=>o.m&&!o.m.na), rk=r.ringX?r.ringX.kg:0;
+    if(!ok){devOk=false; if(!naMsg){const f=r.offs.find(o=>o.m&&o.m.na); if(f)naMsg=f.m.info}}
+    N+=n; nomKg+=n*r.nomKg; finKg+=n*r.finKg; ringKg+=n*rk;
+    offKg+=n*r.offs.reduce((t,o)=>t+o.kg,0); loss+=n*((ok?r.offs.reduce((t,o)=>t+o.dev*o.kg,0):0)+rk);
+  });
+  return {N,Q:I.Q,offKg,loss,nomKg,finKg,ringKg,devOk,naMsg,list:list.map(x=>({n:x.n,q:x.r.I.Q,r:x.r}))};
+}
 function qSolve(){
-  const I=qRead(), tube=I.mode==='tube', bad=a=>a.some(x=>!(x>0));
+  const I=qRead(), r=qSolveOne(I);
+  if(!r.error){r.agg=qAgg([{n:1,r}],I);return r}
+  if([I.rho,I.od,I.len,I.Q].some(x=>!(x>0))||!(I.Q>1)) return r;
+  const one=qSolveOne({...I,Q:1}); if(one.error) return r;
+  let mx=1; while(mx<I.Q&&mx<5000&&!qSolveOne({...I,Q:mx+1}).error) mx++;
+  const nFull=Math.floor(I.Q/mx), rem=I.Q-nFull*mx;
+  const full=qSolveOne({...I,Q:mx}), last=rem?qSolveOne({...I,Q:rem}):null;
+  if(full.error||(last&&last.error)) return r;
+  const list=[{n:nFull,r:full}]; if(last)list.push({n:1,r:last});
+  const res=Object.assign({},full); res.agg=qAgg(list,I); res.agg.mx=mx; res.agg.nFull=nFull; res.agg.rem=rem; res.last=last;
+  return res;
+}
+function qSolveOne(I){
+  const tube=I.mode==='tube', bad=a=>a.some(x=>!(x>0));
   if(bad([I.rho,I.od,I.len,I.Q])) return {error:'Fill in OD, L, quantity and density with values greater than zero.'};
   let Dmaj,Lmaj,Ltot,segs;
   if(I.collar){
@@ -1517,44 +1585,45 @@ function qSolve(){
   const nomKg=segs.reduce((s,p)=>s+cylKg(2*p.r,p.z1-p.z0,I.rho),0);
   return {I,tube,Dmaj,Lmaj,Ltot,segs,dems,pl,Lpc,used,dm,offs,ringX,pieceKg:one(Lpc),finKg:one(I.len)*I.Q,nomKg};
 }
-function qScene(r){
-  const I=r.I, parts=r.segs.map(g=>({z0:g.z0,z1:g.z1,ro:g.r,ri:0,fill:'--nominal',alpha:.07,edge:'--nominal',dash:false,lw:2}));
+function qScene(r0,k0){
+  const r=r0.agg?fsRes(r0.agg,k0||0).r:r0, I=r.I, parts=r.segs.map(g=>({z0:g.z0,z1:g.z1,ro:g.r,ri:0,fill:'--nominal',alpha:.07,edge:'--nominal',dash:false,lw:2}));
   r.offs.forEach((o,i)=>o.parts.forEach(g=>parts.push({z0:g.z0,z1:g.z1,ro:g.r,ri:g.ri||0,fill:'--off'+(i+1),alpha:.34,edge:'--off'+(i+1),dash:false,lw:1})));
   if(r.ringX) r.ringX.rings.forEach(g=>parts.push({z0:g.z0,z1:g.z1,ro:g.Do/2,ri:g.Di/2,fill:'--demand2',alpha:.22,edge:'--demand2',dash:true,lw:1.5}));
   r.dems.forEach(d=>{const seps=[];for(let k=1;k<d.n;k++)seps.push(d.z0+k*r.Lpc);
     parts.push({z0:d.z0,z1:d.z1,ro:I.od/2,ri:r.tube?I.id/2:0,fill:'--demand',alpha:.20,edge:'--demand',dash:true,lw:2,seps})});
   return {Ltot:r.Ltot,Rmax:r.Dmaj/2,parts,labels:[{x:r.Ltot/2,y:-r.Dmaj/2,z:0,t:`L ${Lc(r.Ltot,0)}`},{x:r.Ltot,y:r.Dmaj/2,z:0,t:`ø ${Lc(r.Dmaj,0)}`}]};
 }
-function qPaint(){const r=state.qres; if(!r||r.error)return; const cv=$('qcv'); if(cv)drawRod(cv,qScene(r),qstate.view)}
+function qPaint(){const r=state.qres; if(!r||r.error)return; const cv=$('qcv'); if(cv)drawRod(cv,qScene(r,FSEL.q),qstate.view)}
 function qRender(){
   qSidebar(); const r=qSolve(); state.qres=r;
   const main=$('qmain');
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('RN',null);return}
-  const I=r.I, offs=r.offs, label=r.tube?'Tube':'Round';
+  const I=r.I, offs=r.offs, label=r.tube?'Tube':'Round', A=r.agg, QT=A.Q, multi=A.N>1, grpO=A.N>12;
   dgUpdate('RN',{od:I.od,L:r.used});
   const kindOf={round:'Round',collar:'Collar',ring:'Ring',core:'Core'};
   const dimsOf=o=>o.type==='collar'?`ø${Lc(o.d1,1)} × ${Lc(o.l1,1)} + ø${Lc(o.D2,1)} × ${Lc(o.l2,1)}`:o.type==='ring'?`OD ${Lc(o.Do,1)} · ID ${Lc(o.Di,1)} × ${Lc(o.L,1)}`:`ø${Lc(o.D,1)} × ${Lc(o.L,1)}`;
-  const devOk=ROUND_RULES_READY&&offs.every(o=>o.m&&!o.m.na), naMsg=(offs.find(o=>o.m&&o.m.na)||{m:{}}).m.info;
-  const ringKgX=r.ringX?r.ringX.kg:0, loss=(devOk?offs.reduce((s,o)=>s+o.dev*o.kg,0):0)+ringKgX, offKg=offs.reduce((s,o)=>s+o.kg,0);
-  const wP=r.pieceKg*I.Q, calcKg=wP+loss;
+  const devOk=A.devOk, naMsg=A.naMsg;
+  const ringKgX=A.ringKg, loss=A.loss, offKg=A.offKg;
+  const fItems=[]; A.list.forEach((e,ei)=>{ if(!e.r.offs.length)return; if(grpO)fItems.push({offs:e.r.offs,m:e.n,f:fItems.length+1}); else for(let k=0;k<e.n;k++)fItems.push({offs:e.r.offs,m:1,f:fItems.length+1}) });
+  const wP=r.pieceKg*QT, calcKg=wP+loss;
   const lg=(col,txt,dash)=>`<span><i class="${dash?'dash':''}" style="border-color:var(${col});background:color-mix(in srgb,var(${col}) 35%,transparent)"></i>${txt}</span>`;
   const pctn=v=>`<span class="pctnote">(${nf(calcKg?v/calcKg*100:0,1)}%)</span>`;
-  const offCard=(o,i)=>`<article class="off" style="--c:var(--off${i+1})">
-      <h3><span>Offall ${i+1} · ${kindOf[o.type]}</span>${o.m&&!o.m.na?`<span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span>`:'<span class="note">no table row</span>'}</h3>
+  const offCard=(o,i,fi)=>`<article class="off" style="--c:var(--off${i+1})">
+      <h3><span>${fi?'Feedstock '+fi.f+(fi.m>1?' (× '+fi.m+')':'')+' · ':''}Offall ${i+1} · ${kindOf[o.type]}</span>${o.m&&!o.m.na?`<span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span>`:'<span class="note">no table row</span>'}</h3>
       <dl class="dl num">${o.type==='collar'?`<dt>Small OD</dt><dd>${Lu(o.d1,1)}</dd><dt>L small OD</dt><dd>${Lu(o.l1,1)}</dd><dt>Large OD</dt><dd>${Lu(o.D2,1)}</dd><dt>L large OD</dt><dd>${Lu(o.l2,1)}</dd>`:o.type==='ring'?`<dt>OD</dt><dd>${Lu(o.Do,1)}</dd><dt>ID</dt><dd>${Lu(o.Di,1)}</dd><dt>L</dt><dd>${Lu(o.L,1)}</dd>`:`<dt>OD</dt><dd>${Lu(o.D,1)}</dd><dt>L</dt><dd>${Lu(o.L,1)}</dd>`}<dt>Volume</dt><dd>${Vu(o.vol)}</dd></dl>
       <div class="weight num"><small>P = V × D</small><span>${Wu(o.kg,1)}</span></div></article>`;
   main.innerHTML=`
   <div class="kpis">
-    <div class="kpi" style="border-top:3px solid var(--demand)"><span class="l">L used</span><span class="v num">${Lu(r.used,1)}</span><span class="s">${I.Q} pcs × ${Lu(r.Lpc,1)} (with allowance) of ${I.collar?Lu(r.Ltot,1)+' (Collar total L)':Lu(r.Lmaj,1)}</span></div>
-    <div class="kpi"><span class="l">Useful pieces / Feedstock</span><span class="v num">${nf(r.finKg/r.nomKg*100,1)}%</span><span class="s">${Wu(r.finKg,1)} of ${Wu(r.nomKg,1)}</span></div>
-    <div class="kpi"><span class="l">Offall</span><span class="v num">${offs.length?Wu(offKg,1)+'':'no leftover'}</span><span class="s">${offs.length?nf(offKg/r.nomKg*100,1)+'% of Feedstock · '+offs.length+' Offall'+(offs.length>1?'s':''):'the cut consumes the whole round'}</span></div>
+    <div class="kpi" style="border-top:3px solid var(--demand)"><span class="l">L used</span><span class="v num">${Lu(r.used,1)}</span><span class="s">${I.Q} pcs × ${Lu(r.Lpc,1)} (with allowance)${multi?' per round · '+A.N+' rounds':''} of ${I.collar?Lu(r.Ltot,1)+' (Collar total L)':Lu(r.Lmaj,1)}</span></div>
+    <div class="kpi"><span class="l">Useful pieces / Feedstock</span><span class="v num">${nf(A.finKg/A.nomKg*100,1)}%</span><span class="s">${Wu(A.finKg,1)} of ${Wu(A.nomKg,1)}${multi?' · '+A.N+' Feedstock pcs':''}</span></div>
+    <div class="kpi"><span class="l">Offall</span><span class="v num">${offs.length?Wu(offKg,1)+'':'no leftover'}</span><span class="s">${offs.length?nf(offKg/A.nomKg*100,1)+'% of Feedstock · '+(multi?'total of '+A.N+' pcs':offs.length+' Offall'+(offs.length>1?'s':'')):'the cut consumes the whole round'}</span></div>
   </div>
   <section class="card ori pl${PL.c?' collapsed':''}">
     <header class="orhead plhead" role="button" tabindex="0" aria-expanded="${!PL.c}"><h2 style="display:flex;align-items:center;gap:8px"><i class="chev" aria-hidden="true"></i>Placement in the Feedstock round</h2>
       <div class="legend"><span><i style="border-color:var(--nominal);background:var(--nominal-fill)"></i>Feedstock</span>${lg('--demand',`Demanded ${label} (with allowance, split piece by piece)`,true)}${offs.map((o,i)=>lg('--off'+(i+1),'Offall '+(i+1))).join('')}${r.ringX?lg('--demand2','Excess OD stock (machined away, 100% loss)',true):''}</div></header>
-    <div class="stage" id="qstage"><canvas id="qcv" aria-label="3D drawing of the Feedstock round, the demand and the Offalls"></canvas><span class="hint">drag to rotate</span></div>
+    ${fsBar('q',A.N)}<div class="stage" id="qstage"><canvas id="qcv" aria-label="3D drawing of the Feedstock round, the demand and the Offalls"></canvas><span class="hint">drag to rotate</span></div>
   </section>
-  <section><div class="offs">${offs.length?offs.map(offCard).join(''):'<div class="note">There is no Offall: the cut consumes the whole round.</div>'}</div>
+  <section><div class="offs">${fItems.length?fItems.map(fi=>fi.offs.map((o,i)=>offCard(o,i,multi?fi:null)).join('')).join(''):'<div class="note">There is no Offall: the cut consumes the whole round.</div>'}${multi?`<p class="note" style="flex-basis:100%;margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full round${A.nFull>1?'s':''} with ${A.mx} pcs${A.rem?` + 1 last round with ${A.rem} pcs`:''}. Each Feedstock piece has its own Offall(s), listed in the Devaluation table. Total Offall ${offKg>0?Wu(offKg,1):'none'}.</p>`:''}</div>
     ${r.ringX?`<p class="note" style="margin:8px 0 0">${ringNote(label,I,r.ringX)}</p>`:''}${cutNote(r)}
     ${offs.some(o=>o.type==='collar')?'<p class="note" style="margin:8px 0 0">Collar Offall: small OD for L small OD, then the large OD for L large OD. Depreciation uses only the small OD and the total L (L small OD + L large OD).</p>':''}
     ${r.tube?`<p class="note" style="margin:8px 0 0">Offall OD (${Lu(r.dm,1)}) + allowance (${Lu(I.aI,1)}) = Tube ID (${Lu(I.id,1)}).</p>`:''}</section>
@@ -1564,7 +1633,7 @@ function qRender(){
     <div class="body"><p class="note" style="margin:0">Spreadsheet Devaluation_v7.xlsx, tab "Rules_Rounds": Offall with OD ≤ 24" follows the Rods table (Rules_Rods). Above 24": L &lt; 1" → $ 0/${MUl()}; 1" ≤ L &lt; 4" → $ ${nf(PP(0.9072*LB2KG),2)}/${MUl()}; L ≥ 4" → table by OD (row exact ±0.02" or the OD immediately below; above 60" the 60" row) and length band = L(offall) ÷ L(original ${ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)].L}"). Collar Offall (tab "Rules_Collars"): each OD segment is valued separately and weighted by volume. Bands 2–4 are provisional prices in the spreadsheet. Depreciation = (price of the material selected in Costing − Offall value) ÷ material price, limited to 0%–100%.</p></div>
     ${offs.length||r.ringX?`<div class="tablewrap"><table>
       <thead><tr><th>Offall</th><th>Dimensions (${LUl()})</th><th class="r">Weight</th><th>Rule applied</th><th class="r">Depreciation</th><th class="r">${DVH()}</th></tr></thead>
-      <tbody>${offs.map((o,i)=>`<tr><td><b style="color:var(--off${i+1})">Offall ${i+1}</b></td><td class="num">${dimsOf(o)}</td><td class="r num">${Wu(o.kg,1)}</td><td class="note">${o.m?o.m.info:''}</td><td class="r num">${o.m&&!o.m.na?pct(o.dev):'—'}</td><td class="r num">${o.m&&!o.m.na?DV(o.dev*o.kg,'RN'):'—'}</td></tr>`).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(r.ringX.kg,1)}</td><td class="note">100% machined away</td><td class="r num">${pct(1)}</td><td class="r num">${DV(r.ringX.kg,'RN')}</td></tr>`:''}</tbody>
+      <tbody>${fItems.map(fi=>fi.offs.map((o,i)=>`<tr><td><b style="color:var(--off${i+1})">${multi?'Feedstock '+fi.f+(fi.m>1?' ×'+fi.m:'')+' · ':''}Offall ${i+1}</b></td><td class="num">${dimsOf(o)}</td><td class="r num">${Wu(o.kg*fi.m,1)}</td><td class="note">${o.m?o.m.info:''}</td><td class="r num">${o.m&&!o.m.na?pct(o.dev):'—'}</td><td class="r num">${o.m&&!o.m.na?DV(o.dev*o.kg*fi.m,'RN'):'—'}</td></tr>`).join('')).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RN')}</td></tr>`:''}</tbody>
       <tfoot><tr><td>Total</td><td></td><td></td><td>${DEV$?'Total amount devalued':'Weighted depreciated weight'}</td><td></td><td class="r num">${DV(loss,'RN')}</td></tr></tfoot>
     </table></div>`:''}
   </section>
@@ -1576,7 +1645,7 @@ function qRender(){
         ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})</option>`).join('')}</select></div>${matLow('RN')}${matCard('RN')}${xcHTML('rounds')}`
         :`<div class="field"><label for="qprice">Cost per kg · Price $/kg</label><div class="inp"><input id="qprice" type="number" min="0" step="any" value="${qstate.price}" placeholder="awaiting price list"><span>$/kg</span></div></div>`}
         <dl class="dl num">
-          <dt>${label} · ${Wu(r.pieceKg,2)} × ${I.Q} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
+          <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${Wu(loss,2)} ${pctn(loss)}${naMsg?' <span class="pctnote">(Offall has no table row)</span>':''}</dd>
           <dt><b>Total calculation weight</b></dt><dd><b>${Wu(calcKg,2)}</b></dd>
           <dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)].kg),2)}/${MUl()}</dd>
@@ -1584,7 +1653,7 @@ function qRender(){
           <dt><b>Piece cost</b></dt><dd><b id="qpc">—</b> /pc</dd>
           <dt><b>Piece cost + Extra cost</b></dt><dd><b data-pcx="q">—</b> /pc</dd>
         </dl>
-        <p class="memo num">Total weight × cost per ${MUl()} ÷ ${I.Q} pcs</p>
+        <p class="memo num">Total weight × cost per ${MUl()} ÷ ${QT} pcs</p>
         `}
         ${omSt('rounds').on?'':mchHTML('q')}
       </div>
@@ -1594,13 +1663,13 @@ function qRender(){
   const cost=()=>{
     const kg=ROUNDPRICES.length?ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)].kg:parseFloat(qstate.price);
     const has=kg>=0&&isFinite(kg);
-    if($('qlot')){$('qlot').textContent=has?'$ '+nf(calcKg*kg,2):'—'; $('qpc').textContent=has?'$ '+nf(calcKg*kg/I.Q,2):'—'} mcSet('rounds','q',omPrice('rounds',0,has?calcKg*kg/I.Q:NaN));xcShow('rounds'); if(window.mchFin)mchFin('q');
+    if($('qlot')){$('qlot').textContent=has?'$ '+nf(calcKg*kg,2):'—'; $('qpc').textContent=has?'$ '+nf(calcKg*kg/QT,2):'—'} mcSet('rounds','q',omPrice('rounds',0,has?calcKg*kg/QT:NaN));xcShow('rounds'); if(window.mchFin)mchFin('q');
   };
   cost();
   omInit();
   if($('qmat'))$('qmat').onchange=e=>{qstate.mat=+e.target.value;qRender()}; matBind(); mchBind('q');
   if($('qprice'))$('qprice').oninput=e=>{qstate.price=e.target.value;cost()};
-  qPaint();
+  qPaint(); fsBind('q',qPaint);
   const st=$('qstage'); let drag=null;
   st.onpointerdown=e=>{drag=[e.clientX,e.clientY];st.setPointerCapture(e.pointerId)};
   st.onpointermove=e=>{if(!drag)return;qstate.view.yaw+=(e.clientX-drag[0])*0.008;qstate.view.pitch=Math.max(-1.4,Math.min(1.4,qstate.view.pitch+(e.clientY-drag[1])*0.008));drag=[e.clientX,e.clientY];qPaint()};
@@ -1940,10 +2009,10 @@ function rInfo(k){
   let feed=[], dHead=[], parts=[];
   if(k==='blocks'){
     const r=state.res, I=r.I, kgOf=pieceWeight();
-    feed=[['Dimensions',[`W ${Lu(I.N[0],1)}`,`H ${Lu(I.N[1],1)}`,`L ${Lu(I.N[2],1)}`]],['Block specs',[`Density ${dens}`,`Volume ${Vu(r.volN)}`,`Total weight ${Wu(r.volN*I.D,1)}`]]];
+    feed=[['Dimensions',[`W ${Lu(I.N[0],1)}`,`H ${Lu(I.N[1],1)}`,`L ${Lu(I.N[2],1)}`]],['Block specs',[`Density ${dens}`,`Volume ${Vu(r.volN)}`,`Total weight ${Wu(r.volN*I.D,1)}`].concat(r.agg&&r.agg.N>1?[`Feedstock pieces ${r.agg.N}`]:[])]];
     dHead=["W'","H'","L'"];
     const add=(nm,P,A,Q,w)=>parts.push({nm,dims:P.map(mm),allow:A.map(a=>'+'+mm(a)),Q,wNo:P[0]*P[1]*P[2]/1e9*I.D,wWith:w});
-    add('Part I',I.P,I.A,I.Q,kgOf[0]); if(I.on2)add('Part II',I.P2,I.A2,I.Q2,kgOf[1]);
+    add('Part I',I.P,I.A,(r.agg&&!I.on2&&r.agg.Q)||I.Q,kgOf[0]); if(I.on2)add('Part II',I.P2,I.A2,I.Q2,kgOf[1]);
   }else{
     const r=k==='rods'?state.rres:state.qres, I=r.I, tube=r.tube, W=k==='rods'?'Rod':'Round';
     const dim=I.collar?[`Small OD ${Lu(I.d1,1)}`,`L small OD ${Lu(I.l1,1)}`,`Large OD ${Lu(I.D2,1)}`,`L large OD ${Lu(I.l2,1)}`]:[`OD ${Lu(I.D,1)}`,`L ${Lu(I.L,1)}`];
