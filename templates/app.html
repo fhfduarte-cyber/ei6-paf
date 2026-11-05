@@ -1210,7 +1210,7 @@ function rAgg(list,I){
     N+=n; nomKg+=n*r.nomKg; finKg+=n*r.finKg; offKg+=n*(off?off.kg:0); ringKg+=n*rk;
     loss+=n*((off&&devOk?off.dev*off.kg:0)+rk); if(off&&!devOk)noRule=true;
   });
-  return {N,Q:I.Q,offKg,loss,nomKg,finKg,ringKg,noRule,list:list.map(x=>({n:x.n,q:x.r.I.Q,offKg:x.r.off?x.r.off.kg:0}))};
+  return {N,Q:I.Q,offKg,loss,nomKg,finKg,ringKg,noRule,list:list.map(x=>({n:x.n,q:x.r.I.Q,offKg:x.r.off?x.r.off.kg:0,r:x.r}))};
 }
 function bad1(I){return [I.rho,I.Q,I.od,I.len].some(x=>!(x>0))}
 function rSolve(){
@@ -1362,6 +1362,11 @@ function rRender(){
     ?`<dt>Small OD</dt><dd>${Lu(off.d1,1)}</dd><dt>L small OD</dt><dd>${Lu(off.l1,1)}</dd><dt>Large OD</dt><dd>${Lu(off.D2,1)}</dd><dt>L large OD</dt><dd>${Lu(off.l2,1)}</dd>${off.core?`<dt>Tube core</dt><dd>ø${Lc(off.core.d,1)} × ${Lu(off.core.l,1)}</dd>`:''}`
     :`<dt>OD</dt><dd>${Lu(off.D,1)}</dd><dt>L</dt><dd>${Lu(off.L,1)}</dd>`;
   const offKind=!off?'':off.type==='collar'?'Collar':'Rod';
+  const grpO=A.N>12, offItems=[]; A.list.forEach((e,ei)=>{ if(!e.r.off)return; if(grpO)offItems.push({o:e.r.off,m:e.n,c:ei+1}); else for(let k=0;k<e.n;k++)offItems.push({o:e.r.off,m:1,c:ei+1}) });
+  const oDims=o=>o.type==='collar'
+    ?`<dt>Small OD</dt><dd>${Lu(o.d1,1)}</dd><dt>L small OD</dt><dd>${Lu(o.l1,1)}</dd><dt>Large OD</dt><dd>${Lu(o.D2,1)}</dd><dt>L large OD</dt><dd>${Lu(o.l2,1)}</dd>${o.core?`<dt>Tube core</dt><dd>ø${Lc(o.core.d,1)} × ${Lu(o.core.l,1)}</dd>`:''}`
+    :`<dt>OD</dt><dd>${Lu(o.D,1)}</dd><dt>L</dt><dd>${Lu(o.L,1)}</dd>`;
+  const oOk=o=>o.m&&!o.m.na;
   const lg=(col,txt,dash)=>`<span><i class="${dash?'dash':''}" style="border-color:var(${col});background:color-mix(in srgb,var(${col}) 35%,transparent)"></i>${txt}</span>`;
   main.innerHTML=`
   <div class="kpis">
@@ -1372,18 +1377,18 @@ function rRender(){
 
   <section class="card ori pl${PL.c?' collapsed':''}">
     <header class="orhead plhead" role="button" tabindex="0" aria-expanded="${!PL.c}"><h2 style="display:flex;align-items:center;gap:8px"><i class="chev" aria-hidden="true"></i>Placement in the Feedstock rod</h2>
-      <div class="legend"><span><i style="border-color:var(--nominal);background:var(--nominal-fill)"></i>Feedstock${I.collar?' (Collar)':''}</span>${lg('--demand',`Demanded ${label} (with allowance, split piece by piece)`,true)}${off?lg('--off1','Offall 1'):''}${r.ringX?lg('--demand2','Excess OD stock (machined away, 100% loss)',true):''}</div></header>
+      <div class="legend"><span><i style="border-color:var(--nominal);background:var(--nominal-fill)"></i>Feedstock${I.collar?' (Collar)':''}</span>${lg('--demand',`Demanded ${label} (with allowance, split piece by piece)`,true)}${off?lg('--off1',multi?'Offall (one full rod shown)':'Offall 1'):''}${r.ringX?lg('--demand2','Excess OD stock (machined away, 100% loss)',true):''}</div></header>
     <div class="stage" id="rstage"><canvas id="rcv" aria-label="3D drawing of the Feedstock rod, the demand and the Offall"></canvas><span class="hint">drag to rotate</span></div>
   </section>
 
   <section>
-    <div class="offs" id="roffs">${off?`
-      <article class="off" style="--c:var(--off1)">
-        <h3><span>Offall 1 · ${offKind}</span>${devOk&&off.m?`<span class="pill ${classOf(off.dev)}">${pct(off.dev)}</span>`:`<span class="note">${off.m?'no table row':'depreciation pending'}</span>`}</h3>
-        <dl class="dl num">${offDims}<dt>Volume</dt><dd>${Vu(off.vol)}</dd></dl>
-        <div class="weight num"><small>P = V × D</small><span>${Wu(off.kg,1)}</span></div>
-      </article>`:`<div class="note">There is no Offall: the cut consumes the whole rod length.</div>`}
-    ${r.ringX?`<p class="note" style="margin:8px 0 0">${ringNote(label,I,r.ringX)}</p>`:''}${cutNote(r)}${multi?`<p class="note" style="margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full rod${A.nFull>1?'s':''} with ${A.mx} pcs (Offall ${A.list[0].offKg>0?Wu(A.list[0].offKg,1):'none'} each)${A.rem?` + 1 last rod with ${A.rem} pcs (Offall ${A.list[1].offKg>0?Wu(A.list[1].offKg,1):'none'})`:''}. The drawing and the Offall card show one full rod; Total Offall ${A.offKg>0?Wu(A.offKg,1):'none'}.</p>`:''}</div>
+    <div class="offs" id="roffs">${off?offItems.map((it,i)=>{const o=it.o;return `
+      <article class="off" style="--c:var(--off${it.c})">
+        <h3><span>Offall ${i+1}${it.m>1?' (× '+it.m+')':''} · ${o.type==='collar'?'Collar':'Rod'}</span>${oOk(o)?`<span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span>`:`<span class="note">${o.m?'no table row':'depreciation pending'}</span>`}</h3>
+        <dl class="dl num">${oDims(o)}<dt>Volume</dt><dd>${Vu(o.vol)}</dd></dl>
+        <div class="weight num"><small>P = V × D${it.m>1?' · each':''}</small><span>${Wu(o.kg,1)}</span></div>
+      </article>`}).join(''):`<div class="note">There is no Offall: the cut consumes the whole rod length.</div>`}
+    ${r.ringX?`<p class="note" style="margin:8px 0 0">${ringNote(label,I,r.ringX)}</p>`:''}${cutNote(r)}${multi?`<p class="note" style="margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full rod${A.nFull>1?'s':''} with ${A.mx} pcs (Offall ${A.list[0].offKg>0?Wu(A.list[0].offKg,1):'none'} each)${A.rem?` + 1 last rod with ${A.rem} pcs (Offall ${A.list[1].offKg>0?Wu(A.list[1].offKg,1):'none'})`:''}. The drawing shows one full rod; each Feedstock piece has its own Offall card below. Total Offall ${A.offKg>0?Wu(A.offKg,1):'none'}.</p>`:''}</div>
     ${off&&off.type==='collar'?'<p class="note" style="margin:8px 0 0">Collar: starts with the small OD for L small OD and returns to the large OD for L large OD; the sum of the two lengths is the rod length.</p>':''}
   </section>
 
@@ -1393,7 +1398,7 @@ function rRender(){
     <div class="body"><p class="note" style="margin:0">Spreadsheet Devaluation_v7.xlsx, tab "Rules_Rods": the row is chosen by the Offall OD (exact ±0.02", otherwise the OD immediately below; above 24" the 24" row; below 2" no rule, no depreciation). The column is the length band = L(offall) ÷ L(original ${RODPRICES[Math.min(rstate.mat,RODPRICES.length-1)].L}") : ≥ 80% | 60–80% | 40–60% | 20–40% | &lt; 20%. Each cell is the Offall value in $/${MUl()}. Depreciation = (price of the material selected in Costing − Offall value) ÷ material price, limited to 0%–100%. Collar (tab "Rules_Collars"): split into its large-OD and small-OD segments; each is valued with its own OD and L (Rods table up to 24", Rounds table above) and the Offall value is the sum weighted by segment volume (OD² × L). Bands 2–4 are provisional prices in the spreadsheet.</p></div>
     ${off||r.ringX?`<div class="tablewrap"><table>
       <thead><tr><th>Block</th><th>Dimensions (${LUl()})</th><th class="r">Weight</th><th>Rule applied</th><th class="r">Depreciation</th><th class="r">${DVH()}</th></tr></thead>
-      <tbody>${off?`<tr><td><b style="color:var(--off1)">Offall 1</b></td><td class="num">${off.type==='collar'?`ø${Lc(off.d1,1)} × ${Lc(off.l1,1)} + ø${Lc(off.D2,1)} × ${Lc(off.l2,1)}${off.core?` + core ø${Lc(off.core.d,1)} × ${Lc(off.core.l,1)}`:''}`:`ø${Lc(off.D,1)} × ${Lc(off.L,1)}`}</td><td class="r num">${Wu(off.kg,1)}</td><td class="note">${off.m?off.m.info:'awaiting rules'}</td><td class="r num">${devOk?pct(off.dev):'—'}</td><td class="r num">${devOk?DV(off.dev*off.kg,'RD'):'—'}</td></tr>`:''}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(r.ringX.kg,1)}</td><td class="note">100% machined away</td><td class="r num">${pct(1)}</td><td class="r num">${DV(r.ringX.kg,'RD')}</td></tr>`:''}</tbody>
+      <tbody>${offItems.map((it,i)=>{const o=it.o,ok=oOk(o);return `<tr><td><b style="color:var(--off${it.c})">Offall ${i+1}${it.m>1?' ×'+it.m:''}</b></td><td class="num">${o.type==='collar'?`ø${Lc(o.d1,1)} × ${Lc(o.l1,1)} + ø${Lc(o.D2,1)} × ${Lc(o.l2,1)}${o.core?` + core ø${Lc(o.core.d,1)} × ${Lc(o.core.l,1)}`:''}`:`ø${Lc(o.D,1)} × ${Lc(o.L,1)}`}</td><td class="r num">${Wu(o.kg*it.m,1)}</td><td class="note">${o.m?o.m.info:'awaiting rules'}</td><td class="r num">${ok?pct(o.dev):'—'}</td><td class="r num">${ok?DV(o.dev*o.kg*it.m,'RD'):'—'}</td></tr>`}).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RD')}</td></tr>`:''}</tbody>
       <tfoot><tr><td>Total</td><td></td><td></td><td>${DEV$?'Total amount devalued':'Weighted depreciated weight'}</td><td></td><td class="r num">${DV(loss,'RD')}</td></tr></tfoot>
     </table></div>`:'<div class="body note">No Offall to depreciate.</div>'}
   </section>

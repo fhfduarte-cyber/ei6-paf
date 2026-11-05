@@ -453,6 +453,8 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
           <div class="field wide"><label for="rDens">D · density</label><div class="inp"><input id="rDens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div></div>
           <div class="subhead">Rod weight</div>
           <dl class="dl num pw" id="rnomw"></dl>
+          <div class="subhead">Feedstock needed</div>
+          <dl class="dl num pw" id="rneed"></dl>
         </div></div>
       </section>
       <section class="card dg" id="dg-RD">
@@ -1196,11 +1198,36 @@ function rSidebar(){
   const Lpc=I.len+I.aL;
   const kg=tube?(cylKg(I.od,Lpc,I.rho)-cylKg(I.id,Lpc,I.rho)):cylKg(I.od,Lpc,I.rho);
   const mx=I.collar?Math.floor(((I.od<=I.d1+0.01?I.l1+I.l2:I.l2)+1e-6)/Lpc):(I.L>0?Math.floor((I.L+1e-6)/Lpc):null);
-  el.innerHTML=`<dt>L with allowance</dt><dd>${Lu(Lpc,1)}</dd><dt>Weight per piece</dt><dd>${Wu(kg,2)}</dd><dt>Total (${I.Q} pcs)</dt><dd><b>${Wu(kg*I.Q,2)}</b></dd>`+(mx!=null?`<dt>Max per Feedstock rod</dt><dd>${nf(mx)} pcs</dd>`:'');
+  el.innerHTML=`<dt>L with allowance</dt><dd>${Lu(Lpc,1)}</dd><dt>Weight per piece</dt><dd>${Wu(kg,2)}</dd><dt>Total (${I.Q} pcs)</dt><dd><b>${Wu(kg*I.Q,2)}</b></dd>`; 
   return kg;
 }
+/* Demanded quantity vs. one rod: when the quantity does not fit in a single Feedstock rod the program no longer stops:
+   it computes how many Feedstock pieces are needed (full rods + one last rod with the remainder) and the TOTAL Offall. */
+function rAgg(list,I){
+  let N=0,offKg=0,loss=0,nomKg=0,finKg=0,ringKg=0,noRule=false;
+  list.forEach(({n,r})=>{
+    const off=r.off, devOk=!off||(off.m&&!off.m.na), rk=r.ringX?r.ringX.kg:0;
+    N+=n; nomKg+=n*r.nomKg; finKg+=n*r.finKg; offKg+=n*(off?off.kg:0); ringKg+=n*rk;
+    loss+=n*((off&&devOk?off.dev*off.kg:0)+rk); if(off&&!devOk)noRule=true;
+  });
+  return {N,Q:I.Q,offKg,loss,nomKg,finKg,ringKg,noRule,list:list.map(x=>({n:x.n,q:x.r.I.Q,offKg:x.r.off?x.r.off.kg:0}))};
+}
+function bad1(I){return [I.rho,I.Q,I.od,I.len].some(x=>!(x>0))}
 function rSolve(){
-  const I=rRead(), tube=I.mode==='tube', bad=a=>a.some(x=>!(x>0));
+  const I=rRead(), r=rSolveOne(I);
+  if(!r.error){r.agg=rAgg([{n:1,r}],I);return r}
+  if(bad1(I)||!(I.Q>1)) return r;
+  const one=rSolveOne({...I,Q:1}); if(one.error) return r;          // not even one piece fits: keep the original message
+  let mx=1; while(mx<I.Q&&mx<5000&&!rSolveOne({...I,Q:mx+1}).error) mx++;
+  const nFull=Math.floor(I.Q/mx), rem=I.Q-nFull*mx;
+  const full=rSolveOne({...I,Q:mx}), last=rem?rSolveOne({...I,Q:rem}):null;
+  if(full.error||(last&&last.error)) return r;
+  const list=[{n:nFull,r:full}]; if(last)list.push({n:1,r:last});
+  const res=Object.assign({},full); res.agg=rAgg(list,I); res.agg.mx=mx; res.agg.nFull=nFull; res.agg.rem=rem; res.last=last;
+  return res;
+}
+function rSolveOne(I){
+  const tube=I.mode==='tube', bad=a=>a.some(x=>!(x>0));
   if(bad([I.rho,I.Q,I.od,I.len])) return {error:'Fill in OD, L, quantity and density with values greater than zero.'};
   let Dmaj,Lmaj,Ltot,segs;
   if(I.collar){
@@ -1322,9 +1349,13 @@ function rRender(){
   const label=r.tube?'Tube':'Rod';
   dgUpdate('RD',{od:I.od,L:r.used});
   const devOk=!off||(off.m&&!off.m.na);
-  const ringKgX=r.ringX?r.ringX.kg:0;
-  const loss=(off&&devOk?off.dev*off.kg:0)+ringKgX;
-  const wP=r.pieceKg*I.Q, calcKg=wP+loss, lotCost=calcKg*mat.kg, pcCost=lotCost/I.Q;
+  const A=r.agg, QT=A.Q, ringKgX=A.ringKg, multi=A.N>1;
+  const loss=A.loss;
+  const wP=r.pieceKg*QT, calcKg=wP+loss, lotCost=calcKg*mat.kg, pcCost=lotCost/QT;
+  const needHTML=multi
+    ?`<dt>Feedstock pieces</dt><dd><b>${A.N} pcs</b></dd><dt>${A.nFull} × full</dt><dd>${A.mx} pcs each</dd>${A.rem?`<dt>1 × last</dt><dd>${A.rem} pcs</dd>`:''}<dt>Total Offall</dt><dd><b>${A.offKg>0?Wu(A.offKg,1):'none'}</b></dd>`
+    :`<dt>Feedstock pieces</dt><dd><b>1 pc</b></dd><dt>Total Offall</dt><dd><b>${A.offKg>0?Wu(A.offKg,1):'none'}</b></dd>`;
+  if($('rneed'))$('rneed').innerHTML=needHTML;
   const money=n=>'$ '+nf(n,2);
   const pctn=(v)=>`<span class="pctnote">(${nf(calcKg?v/calcKg*100:0,1)}%)</span>`;
   const offDims=!off?'':off.type==='collar'
@@ -1334,9 +1365,9 @@ function rRender(){
   const lg=(col,txt,dash)=>`<span><i class="${dash?'dash':''}" style="border-color:var(${col});background:color-mix(in srgb,var(${col}) 35%,transparent)"></i>${txt}</span>`;
   main.innerHTML=`
   <div class="kpis">
-    <div class="kpi" style="border-top:3px solid var(--demand)"><span class="l">L used</span><span class="v num">${Lu(r.used,1)}</span><span class="s">${I.Q} pcs × ${Lu(r.Lpc,1)} (with allowance) of ${I.collar?Lu(r.Ltot,1)+' (Collar total L)':Lu(r.Lmaj,1)}</span></div>
-    <div class="kpi"><span class="l">Useful pieces / Feedstock</span><span class="v num">${nf(r.finKg/r.nomKg*100,1)}%</span><span class="s">${Wu(r.finKg,1)} of ${Wu(r.nomKg,1)}</span></div>
-    <div class="kpi"><span class="l">Offall</span><span class="v num">${off?Wu(off.kg,1)+'':'no leftover'}</span><span class="s">${off?nf(off.kg/r.nomKg*100,1)+'% of Feedstock · '+offKind:'the cut consumes the whole rod'}</span></div>
+    <div class="kpi" style="border-top:3px solid var(--demand)"><span class="l">L used</span><span class="v num">${Lu(r.used,1)}</span><span class="s">${I.Q} pcs × ${Lu(r.Lpc,1)} (with allowance)${multi?' per rod · '+A.N+' rods':''} of ${I.collar?Lu(r.Ltot,1)+' (Collar total L)':Lu(r.Lmaj,1)}</span></div>
+    <div class="kpi"><span class="l">Useful pieces / Feedstock</span><span class="v num">${nf(A.finKg/A.nomKg*100,1)}%</span><span class="s">${Wu(A.finKg,1)} of ${Wu(A.nomKg,1)}${multi?' · '+A.N+' Feedstock pcs':''}</span></div>
+    <div class="kpi"><span class="l">Offall</span><span class="v num">${A.offKg>0?Wu(A.offKg,1)+'':'no leftover'}</span><span class="s">${A.offKg>0?nf(A.offKg/A.nomKg*100,1)+'% of Feedstock'+(multi?' · total of '+A.N+' pcs':' · '+offKind):'the cut consumes the whole rod'}</span></div>
   </div>
 
   <section class="card ori pl${PL.c?' collapsed':''}">
@@ -1352,7 +1383,7 @@ function rRender(){
         <dl class="dl num">${offDims}<dt>Volume</dt><dd>${Vu(off.vol)}</dd></dl>
         <div class="weight num"><small>P = V × D</small><span>${Wu(off.kg,1)}</span></div>
       </article>`:`<div class="note">There is no Offall: the cut consumes the whole rod length.</div>`}
-    ${r.ringX?`<p class="note" style="margin:8px 0 0">${ringNote(label,I,r.ringX)}</p>`:''}${cutNote(r)}</div>
+    ${r.ringX?`<p class="note" style="margin:8px 0 0">${ringNote(label,I,r.ringX)}</p>`:''}${cutNote(r)}${multi?`<p class="note" style="margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full rod${A.nFull>1?'s':''} with ${A.mx} pcs (Offall ${A.list[0].offKg>0?Wu(A.list[0].offKg,1):'none'} each)${A.rem?` + 1 last rod with ${A.rem} pcs (Offall ${A.list[1].offKg>0?Wu(A.list[1].offKg,1):'none'})`:''}. The drawing and the Offall card show one full rod; Total Offall ${A.offKg>0?Wu(A.offKg,1):'none'}.</p>`:''}</div>
     ${off&&off.type==='collar'?'<p class="note" style="margin:8px 0 0">Collar: starts with the small OD for L small OD and returns to the large OD for L large OD; the sum of the two lengths is the rod length.</p>':''}
   </section>
 
@@ -1376,7 +1407,7 @@ function rRender(){
           <select id="rmat">${RODPRICES.map((p,i)=>`<option value="${i}" ${i===rstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})</option>`).join('')}</select></div>
         ${matLow('RD')}${matCard('RD')}${xcHTML('rods')}
         <dl class="dl num">
-          <dt>${label} · ${Wu(r.pieceKg,2)} × ${I.Q} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
+          <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${off&&!devOk&&!ringKgX?'— <span class="pctnote">(no table row)</span>':Wu(loss,2)+' '+pctn(loss)+(off&&!devOk?' <span class="pctnote">(excess OD stock only; Offall has no table row)</span>':'')}</dd>
           <dt><b>Total calculation weight</b></dt><dd><b>${Wu(calcKg,2)}</b></dd>
           <dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(mat.kg),2)}/${MUl()}</dd>
@@ -1384,7 +1415,7 @@ function rRender(){
           <dt><b>Piece cost</b></dt><dd><b>${money(pcCost)}</b> /pc</dd>
           <dt><b>Piece cost + Extra cost</b></dt><dd><b data-pcx="r">—</b> /pc</dd>
         </dl>
-        <p class="memo num">${devOk?'Total weight × cost per '+MUl()+' ÷ '+I.Q+' pcs':'No depreciated weight (no table row) · ÷ '+I.Q+' pcs'}</p>
+        <p class="memo num">${devOk?'Total weight × cost per '+MUl()+' ÷ '+QT+' pcs':'No depreciated weight (no table row) · ÷ '+QT+' pcs'}</p>
         `}
         ${omSt('rods').on?'':mchHTML('r')}
       </div>
@@ -1911,9 +1942,9 @@ function rInfo(k){
   }else{
     const r=k==='rods'?state.rres:state.qres, I=r.I, tube=r.tube, W=k==='rods'?'Rod':'Round';
     const dim=I.collar?[`Small OD ${Lu(I.d1,1)}`,`L small OD ${Lu(I.l1,1)}`,`Large OD ${Lu(I.D2,1)}`,`L large OD ${Lu(I.l2,1)}`]:[`OD ${Lu(I.D,1)}`,`L ${Lu(I.L,1)}`];
-    feed=[['Dimensions',dim],[W+' specs',[`Density ${dens}`,`Volume ${Vu(r.nomKg/I.rho)}`,`Total weight ${Wu(r.nomKg,1)}`].concat(I.collar?[`Total L ${Lu(I.l1+I.l2,1)}`]:[])]];
+    feed=[['Dimensions',dim],[W+' specs',[`Density ${dens}`,`Volume ${Vu(r.nomKg/I.rho)}`,`Total weight ${Wu(r.nomKg,1)}`].concat(I.collar?[`Total L ${Lu(I.l1+I.l2,1)}`]:[]).concat(r.agg?[`Feedstock pieces ${r.agg.N}`,`Total Offall ${r.agg.offKg>0?Wu(r.agg.offKg,1):'none'}`]:[])]];
     dHead=['OD','ID','L'];
-    parts.push({nm:tube?'Tube':W,dims:[mm(I.od),tube?mm(I.id):'-',mm(I.len)],allow:['-',tube?'+'+mm(I.aI):'-','+'+mm(I.aL)],Q:I.Q,wNo:r.finKg/I.Q,wWith:r.pieceKg});
+    parts.push({nm:tube?'Tube':W,dims:[mm(I.od),tube?mm(I.id):'-',mm(I.len)],allow:['-',tube?'+'+mm(I.aI):'-','+'+mm(I.aL)],Q:(r.agg&&r.agg.Q)||I.Q,wNo:r.finKg/I.Q,wWith:r.pieceKg});
   }
   return {feed,dHead,parts,U};
 }
