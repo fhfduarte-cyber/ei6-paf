@@ -87,6 +87,9 @@ final class Router
                     default => Http::error(405, 'Method not allowed'),
                 };
             }
+            if ($path === '/api/datasets' && $method === 'PUT') {
+                Pafs::datasetsUpload($s);
+            }
             if (preg_match('#^/api/admin/datasets/([a-z_]+)$#', $path, $m)) {
                 if (!$s->isAdmin()) {
                     Http::error(403, 'Forbidden');

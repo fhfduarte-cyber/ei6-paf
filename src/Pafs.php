@@ -113,4 +113,33 @@ final class Pafs
         }
         Http::json($rows[0]);
     }
+
+    /**
+     * Upload of the reference data, protected by the unlock password. The password is never stored or logged here:
+     * it is forwarded once, over TLS, to a database function that compares it with a bcrypt hash and rate-limits failures.
+     */
+    public static function datasetsUpload(Session $s): never
+    {
+        $b = Http::body();
+        $pw = $b['password'] ?? null;
+        if (!is_string($pw) || $pw === '' || strlen($pw) > 200) {
+            Http::error(422, 'Enter the unlock password');
+        }
+        $sets = DatasetValidator::sets($b['sets'] ?? null);
+        [$st, $d] = Supabase::rest('POST', 'rpc/update_datasets', (string) $s->token, ['p_sets' => $sets, 'p_password' => $pw]);
+        if ($st === 200 && is_array($d) && ($d['error'] ?? null) === 'invalid_password') {
+            Http::error(403, 'Wrong unlock password');
+        }
+        if ($st === 200 && is_array($d) && !isset($d['error'])) {
+            Http::json(['ok' => true, 'versions' => $d]);
+        }
+        $msg = is_array($d) ? (string) ($d['message'] ?? '') : '';
+        match (true) {
+            str_contains($msg, 'locked') => Http::error(429, 'Too many wrong attempts. Try again in 15 minutes.'),
+            str_contains($msg, 'not_configured') => Http::error(409, 'The unlock password has not been set yet (run set_upload_password in Supabase).'),
+            str_contains($msg, 'forbidden') => Http::error(403, 'Forbidden'),
+            str_contains($msg, 'invalid_payload') => Http::error(422, 'The database rejected the data'),
+            default => Http::error(502, 'Upload failed'),
+        };
+    }
 }

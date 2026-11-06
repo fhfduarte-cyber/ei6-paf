@@ -30,7 +30,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); let raw = ''; for await (const c of req) raw += c; const body = raw ? JSON.parse(raw) : null;
   const q = [...url.searchParams.entries()].filter(([k]) => !['select', 'order', 'limit'].includes(k));
   if (url.pathname === '/__log') return send(res, 200, log);
-  if (url.pathname === '/__reset') { pafs.length = 0; log = []; return send(res, 200, {}); }
+  if (url.pathname === '/__reset') { pafs.length = 0; log = []; global.fails = 0; return send(res, 200, {}); }
   if (url.pathname === '/auth/v1/token') {
     if (req.headers.apikey !== ANON) return send(res, 401, { msg: 'bad key' });
     if (url.searchParams.get('grant_type') === 'password') { const u = users.find((x) => x.email === body.email && x.password === body.password); return u ? send(res, 200, issue(u)) : send(res, 400, { error: 'invalid_grant' }); }
@@ -41,6 +41,12 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/auth/v1/logout') { log.push('logout:' + (me && me.email)); return send(res, 204); }
   if (!url.pathname.startsWith('/rest/v1/')) return send(res, 404, {});
   if (!me) return send(res, 401, { message: 'JWT invalid' });
+  if (url.pathname === '/rest/v1/rpc/update_datasets') {
+    if (!me.role) return send(res, 400, { message: 'forbidden' });
+    if (global.fails >= 5) return send(res, 400, { message: 'locked' });
+    if (body.p_password !== 'unlock-pass-123') { global.fails = (global.fails || 0) + 1; return send(res, 200, { error: 'invalid_password' }); }
+    global.fails = 0; const out = {}; for (const [k, v] of Object.entries(body.p_sets)) { datasets[k].data = v; datasets[k].version++; out[k] = datasets[k].version; } return send(res, 200, out);
+  }
   const t = url.pathname.slice(9), member = !!me.role, admin = me.role === 'admin';
   if (t === 'profiles') { const own = profiles.filter((p) => member || p.id === me.id); return send(res, 200, filt(own, q)); }
   if (t === 'datasets') {

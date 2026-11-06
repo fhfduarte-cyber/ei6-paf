@@ -36,3 +36,13 @@ write; one user cannot corrupt another's work silently; no secrets in the browse
   (and optionally Vercel WAF rules / Firewall).
 * All members can read and edit all PAFs by design (small trusted team). Tighten the `pafs_*` policies if that changes.
 * The ExcelJS file is produced in the browser: the data in it is whatever the signed-in user can already see.
+
+## Reference-data upload (unlock password)
+* Any member can *attempt* an upload; only the holder of the unlock password succeeds. The check happens inside the database
+  (`update_datasets`, SECURITY DEFINER, `search_path=''`), not in the browser or PHP: a member cannot write `datasets` directly (RLS stays admin-only).
+* The password is stored as a bcrypt hash in `app_secrets`, which no API role can read; `set_upload_password` is not callable from the API.
+* Brute force: 5 failures per user per 15 min and 30 overall per hour lock the function (failures are recorded because a wrong password
+  returns a value instead of raising, so the transaction commits). Successful and failed uploads leave an `audit_log` row (`upload`).
+* PHP forwards the password once, over TLS, never logs or stores it; the payload shape is validated (`DatasetValidator`) and rebuilt from a whitelist
+  before it reaches the database. All datasets in one upload are replaced in a single transaction.
+* The password protects against mistakes and casual misuse by signed-in colleagues; anyone who knows it can replace the data. Change it when someone leaves.
