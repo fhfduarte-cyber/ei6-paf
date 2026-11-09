@@ -342,8 +342,9 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .parttitle b{font-size:20px;font-family:var(--font-num)}
 .parttitle .pt-d{font-size:15px;color:var(--fg)}
 .parttitle .pt-r{font-size:12px;color:var(--fg-muted)}
-.pafgrid{display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px}
-@media (max-width:640px){.pafgrid{grid-template-columns:1fr}}
+.pafgrid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.5fr) minmax(0,2.2fr) minmax(0,.8fr);gap:12px}
+@media (max-width:760px){.pafgrid{grid-template-columns:1fr 1fr}}
+@media (max-width:520px){.pafgrid{grid-template-columns:1fr}}
 .pafgrid input,.paftab input{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--fg);padding:8px;font:inherit}
 .pafgrid input:focus,.paftab input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
 .paftab{width:100%;border-collapse:separate;border-spacing:0 6px}
@@ -2268,7 +2269,7 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
 render();
 if(UNIT.us){rRender();qRender()}
 /* =================== PAF: cover + one raw material calculator per part =================== */
-const PAF={id:null,ver:0,no:'',cust:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',no:'',snap:null}],cur:-1,live:0,busy:false};
+const PAF={id:null,ver:0,no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',no:'',snap:null}],cur:-1,live:0,busy:false};
 let S0=null;
 const jclone=o=>JSON.parse(JSON.stringify(o));
 (function(){const c=document.createElement('div');c.id='calc';const t=$('tabs');t.parentNode.insertBefore(c,t);
@@ -2344,6 +2345,7 @@ function pafCover(){
       <div class="body"><div class="pafgrid">
         <div class="field"><label for="paf-no">PAF #</label><input id="paf-no" data-pc="no" type="text" maxlength="40" autocomplete="off" placeholder="e.g. 2026/0457"></div>
         <div class="field"><label for="paf-cust">Customer</label><input id="paf-cust" data-pc="cust" type="text" maxlength="80" autocomplete="off"></div>
+        <div class="field"><label for="paf-desc">Description</label><input id="paf-desc" data-pc="desc" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Seal rings for pump X"></div>
         <div class="field"><label for="paf-date">Created</label><input id="paf-date" data-pc="date" type="date"></div>
       </div></div></section>
       <section class="card"><header><h2>Parts</h2><span class="tag">Each row opens its own raw material calculator</span></header>
@@ -2365,7 +2367,7 @@ function pafCover(){
       pafParts();pafNav()});
     $('paf-gen').onclick=pafGenerate; $('paf-save').onclick=pafSaveDb; $('paf-open').onclick=pafList; $('paf-new').onclick=pafNew; $('paf-exp').onclick=pafExport; $('paf-imp').onclick=()=>$('paf-file').click(); $('paf-file').onchange=e=>{const f=e.target.files[0];if(f)pafOpen(f);e.target.value=''};
   }
-  cv.querySelector('[data-pc=no]').value=PAF.no;cv.querySelector('[data-pc=cust]').value=PAF.cust;cv.querySelector('[data-pc=date]').value=PAF.date;
+  cv.querySelector('[data-pc=no]').value=PAF.no;cv.querySelector('[data-pc=cust]').value=PAF.cust;cv.querySelector('[data-pc=desc]').value=PAF.desc||'';cv.querySelector('[data-pc=date]').value=PAF.date;
   pafParts();
 }
 const pafMsg=(t,ok)=>{const m=$('paf-msg');if(m){m.textContent=t||'';m.classList.toggle('ok',!!ok)}};
@@ -2405,7 +2407,7 @@ async function pafGenerate(){
       for(let c=c1;c<=c2;c++){const x=cover.getCell(r,c);if(o.fill)x.fill=f(o.fill);if(o.line)x.border={bottom:{style:'thin',color:{argb:L}}}}if(o.nf)ce.numFmt=o.nf;return ce};
     cp(1,2,5,'Ei6  ·  PAF form',{color:W,b:true,sz:20,wrap:false});cover.getRow(1).height=34;
     cp(2,2,5,`PAF # ${PAF.no}`,{color:W,b:true,sz:16,wrap:false});cover.getRow(2).height=26;
-    cp(3,2,8,`Customer: ${PAF.cust||'-'}`,{color:'FFCDDCF0',sz:11,wrap:false});
+    cp(3,2,8,`Customer: ${PAF.cust||'-'}${PAF.desc?'  ·  '+PAF.desc:''}`,{color:'FFCDDCF0',sz:11,wrap:false});
     cp(4,2,8,`Created ${PAF.date}  ·  Units: ${UNIT.us?'US (in, lb)':'Metric (mm, kg)'}  ·  Price basis: EXW Parma-OH  ·  ${rows.length} sheet${rows.length>1?'s':''}`,{color:'FFCDDCF0',sz:9,wrap:false});
     let y=6; const hd=['Part #','Description','Calculator','Quoted qty','Quoted price / pc','Final margin'];
     hd.forEach((h,i)=>cp(y,2+i,2+i,h,{fill:B,color:W,b:true,h:i>2?'right':'left',wrap:false}));cover.getRow(y).height=22;y++;
@@ -2436,7 +2438,7 @@ async function api(method,url,body){
   if(!r.ok){const e=new Error(d.error||'Request failed');e.status=r.status;throw e}
   return d;
 }
-const pafBody=()=>({number:PAF.no,customer:PAF.cust,created_on:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,no:p.no,snap:p.snap||S0}))});
+const pafBody=()=>({number:PAF.no,customer:PAF.cust,description:PAF.desc,created_on:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,no:p.no,snap:p.snap||S0}))});
 async function pafSaveDb(){
   if(PAF.busy)return;
   if(!PAF.no.trim()){pafMsg('Enter the PAF # to continue.');$('paf-no').focus();return}
@@ -2449,7 +2451,7 @@ async function pafSaveDb(){
 function pafNew(){
   if(PAF.busy)return; if(PAF.id||PAF.no||PAF.parts.some(p=>p.desc||p.no)){if($('paf-new').dataset.sure!=='1'){$('paf-new').dataset.sure='1';$('paf-new').textContent='Discard and start new?';setTimeout(()=>{const b=$('paf-new');if(b){b.dataset.sure='';b.textContent='New PAF'}},3500);return}}
   $('paf-new').dataset.sure='';$('paf-new').textContent='New PAF';
-  Object.assign(PAF,{id:null,ver:0,no:'',cust:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',no:'',snap:null}],cur:-1,live:0});
+  Object.assign(PAF,{id:null,ver:0,no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',no:'',snap:null}],cur:-1,live:0});
   snapPut(S0);pafView();pafMsg('New PAF.',true);
 }
 async function pafLoad(id){
@@ -2457,7 +2459,7 @@ async function pafLoad(id){
   try{
     const d=await api('GET','/api/pafs/'+id), parts=(d.payload&&d.payload.parts)||[];
     if(!Array.isArray(parts)||!parts.length)throw new Error('This PAF has no parts.');
-    Object.assign(PAF,{id:d.id,ver:d.version,no:String(d.number),cust:String(d.customer||''),date:String(d.created_on),
+    Object.assign(PAF,{id:d.id,ver:d.version,no:String(d.number),cust:String(d.customer||''),desc:String((d.payload&&d.payload.description)||'').slice(0,120),date:String(d.created_on),
       parts:parts.slice(0,50).map(p=>({desc:String(p.desc||''),no:String(p.no||''),snap:p.snap||null})),live:0,cur:-1});
     snapPut(PAF.parts[0].snap||S0);pafView();pafMsg('Opened PAF # '+PAF.no+' · version '+d.version+'.',true);
   }catch(e){pafMsg(e.message)}finally{PAF.busy=false}
@@ -2483,7 +2485,7 @@ async function pafList(){
 /* ---- backup file (export/import of the whole PAF, all parts and their calculations) ---- */
 async function pafExport(){
   if(PAF.busy)return; PAF.parts[PAF.live].snap=snapTake();
-  const data={app:'ei6-paf',v:1,no:PAF.no,cust:PAF.cust,date:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,no:p.no,snap:p.snap||S0}))};
+  const data={app:'ei6-paf',v:1,no:PAF.no,cust:PAF.cust,desc:PAF.desc,date:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,no:p.no,snap:p.snap||S0}))};
   try{pafMsg('Saving...',true);await pafDownload(new Blob([JSON.stringify(data)],{type:'application/json'}),pafFile('json').replace(/\.json$/,'.ei6paf.json'));pafMsg('PAF file saved.',true)}
   catch(err){pafMsg(err&&err.code==='declined'?'Download cancelled.':(err&&err.message)||'Could not save the file.')}
 }
@@ -2491,7 +2493,7 @@ async function pafOpen(file){
   try{
     const d=JSON.parse(await file.text());
     if(!d||d.app!=='ei6-paf'||!Array.isArray(d.parts)||!d.parts.length)throw new Error('This is not a PAF file saved by this tool.');
-    PAF.no=String(d.no||'');PAF.cust=String(d.cust||'');PAF.date=String(d.date||PAF.date);
+    PAF.no=String(d.no||'');PAF.cust=String(d.cust||'');PAF.desc=String(d.desc||'').slice(0,120);PAF.date=String(d.date||PAF.date);
     PAF.parts=d.parts.slice(0,50).map(p=>({desc:String(p.desc||''),no:String(p.no||''),snap:p.snap||null}));
     PAF.live=0;snapPut(PAF.parts[0].snap||S0);PAF.cur=-1;
     $('pafcover').dataset.built&&pafView();pafMsg('PAF file opened.',true);

@@ -48,7 +48,7 @@ st, b, h = alice.req('GET', '/app'); check('dataset with </script> cannot break 
 # restore dataset
 orig = json.load(open('supabase/seed/prices_rods.json')); alice.j('PUT', '/api/admin/datasets/prices_rods', {'data': orig})
 
-body = {'number': 'PAF-001', 'customer': 'ACME', 'created_on': '2026-10-28', 'parts': [{'desc': 'Seal', 'no': 'A1', 'snap': {'v': {'x': 1}}}]}
+body = {'number': 'PAF-001', 'customer': 'ACME', 'created_on': '2026-10-28', 'description': 'Seal rings for pump X', 'parts': [{'desc': 'Seal', 'no': 'A1', 'snap': {'v': {'x': 1}}}]}
 st, d = alice.j('POST', '/api/pafs', body); check('create PAF', st == 201 and d['version'] == 1, d); pid = d.get('id')
 st, d = alice.j('POST', '/api/pafs', {**body, 'number': ' paf-001 '}); check('duplicate number (case/space) -> 409', st == 409, d)
 st, d = alice.j('POST', '/api/pafs', {**body, 'number': ''}); check('empty number -> 422', st == 422)
@@ -62,6 +62,8 @@ big = {**body, 'number': 'BIG', 'parts': [{'desc': 'x', 'no': 'y', 'snap': {'blo
 st, d = alice.j('POST', '/api/pafs', big); check('oversize payload -> 413', st == 413, st)
 st, d = alice.j('GET', '/api/pafs'); check('list PAFs shows creator email', st == 200 and d['items'][0]['created_by'] == 'alice@ei6.test', d)
 st, d = alice.j('GET', '/api/pafs/' + pid); check('get PAF with payload', st == 200 and d['payload']['parts'][0]['no'] == 'A1')
+check('PAF description is stored', d['payload'].get('description') == 'Seal rings for pump X', d['payload'])
+st, d2 = alice.j('POST', '/api/pafs', {**body, 'number': 'PAF-LONG', 'description': 'x' * 121}); check('description over 120 chars rejected', st == 422, d2)
 st, d = alice.j('GET', '/api/pafs/not-a-uuid'); check('non-uuid id -> 404', st == 404)
 st, d = alice.j('GET', "/api/pafs/" + pid + "?x=1%27%20or%201=1"); check('query junk ignored', st == 200)
 

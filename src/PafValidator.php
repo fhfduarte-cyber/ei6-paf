@@ -65,7 +65,7 @@ final class PafValidator
             ];
         }
         self::scan($clean);
-        return ['number' => $number, 'customer' => $customer, 'created_on' => $date, 'payload' => ['parts' => $clean]];
+        return ['number' => $number, 'customer' => $customer, 'created_on' => $date, 'payload' => ['description' => self::str($b['description'] ?? '', 'Description', 0, 120), 'parts' => $clean]];
     }
 
     public static function uuid(string $s): string
