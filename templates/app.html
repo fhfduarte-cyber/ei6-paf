@@ -563,7 +563,8 @@ const PRICE_SAMPLE=false;
 const PRICES=__D.prices_blocks;
 
 const $=id=>document.getElementById(id);
-const nf=(n,d=0)=>n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const NF={};   // one Intl.NumberFormat per number of decimals (creating one per call made every keystroke take seconds)
+const nf=(n,d=0)=>(NF[d]||(NF[d]=new Intl.NumberFormat('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}))).format(n);
 /* ---- Sistema de unidades: o cálculo é sempre métrico (mm, kg, kg/m³); só a entrada e a exibição convertem. ---- */
 const UNIT={us:false}, KG_LB=0.45359237, DENS_F=27679.9047, UK={};
 const Lc=(mm,d=1)=>nf(UNIT.us?mm/25.4:mm,UNIT.us?Math.max(2,d):d);       // comprimento, só o número
@@ -699,17 +700,20 @@ function depRulesHtml(kind){
     row('Minimum value (floor)','Offall value = MAX(floor, P0 × R)',$$(q.floor))];
   return tbl(rows);
 }
-function depBlock(dimsIn){                              // dimensions in inches (any order) → value $/lb and explanation
+function depBlock(dimsIn){                              // dimensions in inches (any order) → value $/lb; the explanation text is built only when read (it is costly and the solver calls this thousands of times)
   const q=DEP.blocks, d=[...dimsIn].sort((x,y)=>x-y), t=d[0], W=d[1], vol=d[0]*d[1]*d[2], v=Math.min(1,vol/q.vnom), P0=p0Of(q.p0,W);
-  const dim=`${nf(d[0],1)} × ${nf(d[1],1)} × ${nf(d[2],1)}"`;
-  if(r6(t)<q.scrT) return {v:q.scrV,P0,cls:'Scrap',txt:`PFR · ${dim} · thickness ${nf(t,2)}" < ${q.scrT}" → Scrap`};
-  if(r6(t)<q.remT) return {v:q.remV,P0,cls:'Remnant',txt:`PFR · ${dim} · thickness ${nf(t,2)}" < ${q.remT}" → Remnant`};
+  const dim=()=>`${nf(d[0],1)} × ${nf(d[1],1)} × ${nf(d[2],1)}"`;
+  if(r6(t)<q.scrT) return {v:q.scrV,P0,cls:'Scrap',get txt(){return `PFR · ${dim()} · thickness ${nf(t,2)}" < ${q.scrT}" → Scrap`}};
+  if(r6(t)<q.remT) return {v:q.remV,P0,cls:'Remnant',get txt(){return `PFR · ${dim()} · thickness ${nf(t,2)}" < ${q.remT}" → Remnant`}};
   const g=retention(v,q.va,q.vb,q.ra,q.rb,q.rmin);
-  return {v:Math.max(q.floor,P0*g.R),P0,cls:'Offall',txt:`PFR · ${dim} · W ${nf(W,1)}" → P0 $ ${nf(PP(P0*LB2KG),2)} · size ${nf(v*100,0)}% of ${nf(q.vnom,0)} in³ (zone ${g.z}, R ${nf(g.R*100,1)}%)`};
+  return {v:Math.max(q.floor,P0*g.R),P0,cls:'Offall',get txt(){return `PFR · ${dim()} · W ${nf(W,1)}" → P0 $ ${nf(PP(P0*LB2KG),2)} · size ${nf(v*100,0)}% of ${nf(q.vnom,0)} in³ (zone ${g.z}, R ${nf(g.R*100,1)}%)`}};
 }
+const MD_CACHE=new Map();   // the solver asks for the same Offall sizes over and over: memoize (DEP never changes while the page is open)
 function matchDev(sizeMm){
-  const g=depBlock(sizeMm.map(x=>x/IN));
-  return {dev:depOf(g.P0,g.v),v:g.v*LB2KG,P:g.P0*LB2KG,cls:g.cls,info:`${g.txt} → ${usd(g.v*LB2KG)}`};
+  const key=sizeMm[0]+'|'+sizeMm[1]+'|'+sizeMm[2], hit=MD_CACHE.get(key); if(hit)return hit;
+  const g=depBlock([sizeMm[0]/IN,sizeMm[1]/IN,sizeMm[2]/IN]);
+  const m={dev:depOf(g.P0,g.v),v:g.v*LB2KG,P:g.P0*LB2KG,cls:g.cls,get info(){return `${g.txt} → ${usd(g.v*LB2KG)}`}};
+  if(MD_CACHE.size>20000)MD_CACHE.clear(); MD_CACHE.set(key,m); return m;
 }
 
 /* ---------- Solução ---------- */
