@@ -82,37 +82,55 @@ final class DatasetValidator
         return $out;
     }
 
+    private const DEP_BLOCK = ['vnom', 'ra', 'rb', 'rmin', 'va', 'vb', 'floor', 'bulk', 'remT', 'remV', 'scrT', 'scrV'];
+    private const DEP_LEN = ['lnom', 'ra', 'rb', 'rmin', 'xa', 'xb', 'floor', 'ageDays', 'raAged', 'remL', 'remV', 'scrL', 'scrV', 'w'];
+
     private static function devaluation(string $k, mixed $data): array
     {
         if (!is_array($data) || array_is_list($data)) {
             self::bad($k, 'object expected');
         }
-        $src = self::s($data['source'] ?? 'Devaluation workbook', $k, 'source', 200);
-        $blocks = self::lst($data['blocks'] ?? null, $k, 'blocks', 2, 20);
-        $cb = [];
-        foreach ($blocks as $b) {
-            if (!is_array($b)) {
-                self::bad($k, 'invalid block band');
-            }
-            $row = [];
-            foreach (['n', 'minIn', 'maxIn', 'mid', 'big', 'ok', 'no'] as $f) {
-                $row[$f] = self::n($b[$f] ?? null, $k, "block $f", 0, 1e7);
-            }
-            $cb[] = $row;
+        if (($data['version'] ?? null) !== 5) {
+            self::bad($k, 'depreciation model version 5 expected (sheets PFR, PRD-N, PDF-N)');
         }
-        return ['source' => $src, 'blocks' => $cb, 'rods' => self::odRows($k, $data['rods'] ?? null, 'rods'), 'rounds' => self::odRows($k, $data['rounds'] ?? null, 'rounds')];
+        $src = self::s($data['source'] ?? 'Depreciation workbook', $k, 'source', 200);
+        return [
+            'source' => $src,
+            'version' => 5,
+            'blocks' => self::depParams($k, $data['blocks'] ?? null, 'blocks', self::DEP_BLOCK),
+            'rods' => self::depParams($k, $data['rods'] ?? null, 'rods', self::DEP_LEN),
+            'rounds' => self::depParams($k, $data['rounds'] ?? null, 'rounds', self::DEP_LEN),
+        ];
     }
 
-    private static function odRows(string $k, mixed $v, string $what): array
+    private static function depParams(string $k, mixed $v, string $what, array $fields): array
     {
-        $rows = self::lst($v, $k, $what, 1, 200);
+        if (!is_array($v) || array_is_list($v)) {
+            self::bad($k, "$what: object expected");
+        }
         $out = [];
+        foreach ($fields as $f) {
+            $out[$f] = self::n($v[$f] ?? null, $k, "$what $f", 0, 1e7);
+        }
+        $rows = self::lst($v['p0'] ?? null, $k, "$what p0", 1, 30);
+        $p0 = [];
+        $prev = -1.0;
         foreach ($rows as $r) {
             if (!is_array($r) || !array_is_list($r) || count($r) !== 2) {
-                self::bad($k, "$what row must be [OD, [5 values]]");
+                self::bad($k, "$what p0 row must be [from, price]");
             }
-            $b = self::lst($r[1], $k, "$what bands", 5, 5);
-            $out[] = [self::n($r[0], $k, "$what OD", 0, 1000, false), array_map(fn ($x) => self::n($x, $k, "$what value", 0, 1000), $b)];
+            $a = self::n($r[0], $k, "$what p0 from", 0, 1e5);
+            if ($a <= $prev) {
+                self::bad($k, "$what p0: 'from' must be increasing");
+            }
+            $prev = $a;
+            $p0[] = [$a, self::n($r[1], $k, "$what p0 price", 0, 1000)];
+        }
+        $out['p0'] = $p0;
+        foreach (['ra', 'rb', 'rmin'] as $f) {
+            if ($out[$f] > 1) {
+                self::bad($k, "$what $f must be between 0 and 1");
+            }
         }
         return $out;
     }

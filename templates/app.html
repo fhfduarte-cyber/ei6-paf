@@ -532,12 +532,16 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 <script nonce="{{NONCE}}">
 /* Datasets and session come from the server (Supabase) */
 const __D=JSON.parse(document.getElementById("ei6-data").textContent), __U=JSON.parse(document.getElementById("ei6-user").textContent);
-/* ---------- Regras da planilha Devaluation_v7.xlsx (aba "Rules_Blocks") ---------- */
-// faixa pela menor medida (pol); depois testa intermediária (mm) e maior (mm). ok/no = valor do offall em $/${MUl()}.
-const IN=25.4;
-const RULES=__D.devaluation.blocks;
-/* Depreciação = (preço do material no Costing − valor do offall na faixa) ÷ preço do material (limitada a 0–100%). */
+/* ---------- Depreciation model (workbook Depreciation_model_proposal_v5.xlsx: sheets PFR = blocks, PRD-N = rods, PDF-N = rounds) ----------
+   Offall value ($/lb) = MAX(floor, P0 × R(x)); P0 = reference price of the sheet (by OD, or by width for blocks); R = retention by the size factor x (or v for blocks).
+   Below the remnant / scrap thresholds the value is a fixed number from the sheet. Depreciation = 1 − value ÷ P0 (P0 of the sheet, not of the material selected in Costing). */
+const IN=25.4, LB2KG=2.20462, ROUND_MIN_OD=30;          // rounds with OD ≥ 30" follow PDF-N, smaller ones follow PRD-N
+const DEP_DEFAULT={"source":"Depreciation_model_proposal_v5.xlsx (built-in defaults)","version":5,"blocks":{"p0":[[0,2.95],[26,3.2],[40,3.55],[48,3.75]],"vnom":28800,"ra":0.68,"rb":0.5,"rmin":0.15,"va":0.6,"vb":0.04,"floor":0,"bulk":0.3,"remT":2,"remV":1,"scrT":1,"scrV":0},"rods":{"p0":[[0,3.4],[4.5,3.06],[14.5,2.9]],"lnom":72,"ra":0.7,"rb":0.52,"rmin":0.2,"xa":0.9,"xb":0.5,"floor":0,"ageDays":730,"raAged":0.7,"remL":12,"remV":1.25,"scrL":4,"scrV":0,"w":0.75},"rounds":{"p0":[[0,3],[28,3.25],[51,3.65],[58,4.45],[65,6]],"lnom":23,"ra":0.615,"rb":0.46,"rmin":0.23,"xa":0.9,"xb":0.5,"floor":0,"ageDays":730,"raAged":0.46,"remL":4,"remV":1,"scrL":1,"scrV":0,"w":0.75}};
+const DEP=(__D.devaluation&&__D.devaluation.version>=5)?__D.devaluation:DEP_DEFAULT;   // old data shape in the database → built-in defaults
+const r6=x=>Math.round(x*1e6)/1e6;
 const depOf=(P,v)=>P>0?Math.max(0,Math.min(1,(P-v)/P)):0;
+const p0Of=(tbl,x)=>{let v=tbl[0][1];tbl.forEach(r=>{if(r6(x)>=r[0])v=r[1]});return v};
+const retention=(x,a,b,rA,rB,rMin)=>r6(x)>=a?{R:rA,z:'A'}:r6(x)>=b?{R:rB,z:'B'}:{R:rMin+(rB-rMin)*x/b,z:'C'};
 const usd=n=>'$ '+nf(PP(n),2)+'/'+MUl();
 const AX=['W','H','L'];
 const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
@@ -666,14 +670,37 @@ function pieceWeight(){
 }
 
 /* ---------- Casamento com a planilha ---------- */
+/* Rules table shown under "How the depreciation is found" (also copied to the Excel export): Rule | Condition | Value */
+function depRulesHtml(kind){
+  const $$=v=>'$ '+nf(PP(v*LB2KG),2)+'/'+MUl(), pc=v=>nf(v*100,1)+'%', row=(a,b,c)=>`<tr><td>${a}</td><td>${b}</td><td class="r num">${c}</td></tr>`;
+  const tbl=(rows)=>`<div class="tablewrap"><table><thead><tr><th>Rule</th><th>Condition</th><th class="r">Value</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  const p0=(q,what)=>q.p0.map((r,i)=>row(i?'':'Reference price P0',`${what} ≥ ${r[0]}"`,$$(r[1])));
+  if(kind==='b'){const q=DEP.blocks;
+    return tbl([...p0(q,'Width (middle dimension)'),
+      row('Size factor v',`v = MIN(1, volume ÷ ${nf(q.vnom,0)} in³)`,'—'),
+      row('Retention R','v ≥ '+q.va+' (zone A)',pc(q.ra)),row('','v ≥ '+q.vb+' (zone B)',pc(q.rb)),row('',`v < ${q.vb} (zone C): linear to R_min at v = 0`,pc(q.rmin)),
+      row('Remnant',`thickness (smallest dimension) < ${q.remT}"`,$$(q.remV)),row('Scrap',`thickness < ${q.scrT}"`,$$(q.scrV)),
+      row('Minimum value (floor)','Offall value = MAX(floor, P0 × R)',$$(q.floor))]);}
+  const q=kind==='r'?DEP.rods:DEP.rounds, nm=kind==='r'?'PRD-N':'PDF-N';
+  const rows=[...p0(q,'OD'),
+    row('Length factor x',`x = MIN(1, L ÷ ${q.lnom}")  (collar: L small OD + L large OD)`,'—'),
+    row('Retention R','x ≥ '+q.xa+' (zone A)',pc(q.ra)),row('','x ≥ '+q.xb+' (zone B)',pc(q.rb)),row('',`x < ${q.xb} (zone C): linear to R_min at x = 0`,pc(q.rmin)),
+    row('Remnant',`L < ${q.remL}"`,$$(q.remV)),row('Scrap',`L < ${q.scrL}"`,$$(q.scrV)),
+    row('Collar P0',`${pc(q.w)} × P0(smaller OD) + ${pc(1-q.w)} × P0(larger OD)`,'—'),
+    row('Minimum value (floor)','Offall value = MAX(floor, P0 × R)',$$(q.floor))];
+  return tbl(rows);
+}
+function depBlock(dimsIn){                              // dimensions in inches (any order) → value $/lb and explanation
+  const q=DEP.blocks, d=[...dimsIn].sort((x,y)=>x-y), t=d[0], W=d[1], vol=d[0]*d[1]*d[2], v=Math.min(1,vol/q.vnom), P0=p0Of(q.p0,W);
+  const dim=`${nf(d[0],1)} × ${nf(d[1],1)} × ${nf(d[2],1)}"`;
+  if(r6(t)<q.scrT) return {v:q.scrV,P0,cls:'Scrap',txt:`PFR · ${dim} · thickness ${nf(t,2)}" < ${q.scrT}" → Scrap`};
+  if(r6(t)<q.remT) return {v:q.remV,P0,cls:'Remnant',txt:`PFR · ${dim} · thickness ${nf(t,2)}" < ${q.remT}" → Remnant`};
+  const g=retention(v,q.va,q.vb,q.ra,q.rb,q.rmin);
+  return {v:Math.max(q.floor,P0*g.R),P0,cls:'Offall',txt:`PFR · ${dim} · W ${nf(W,1)}" → P0 $ ${nf(PP(P0*LB2KG),2)} · size ${nf(v*100,0)}% of ${nf(q.vnom,0)} in³ (zone ${g.z}, R ${nf(g.R*100,1)}%)`};
+}
 function matchDev(sizeMm){
-  const a=[...sizeMm].sort((x,y)=>x-y);          // menor, intermediária, maior (mm)
-  const small=a[0]/IN;
-  let r=RULES[0];
-  RULES.forEach(x=>{if(small>=x.minIn)r=x});     // equivale ao MATCH(...,1) da planilha
-  const ok=a[1]>=r.mid&&a[2]>=r.big;
-  const v=ok?r.ok:r.no, P=PRICES[Math.min(state.mat,PRICES.length-1)].kg;
-  return {dev:depOf(P,v),v,P,band:r.n,ok,small,mid:a[1],big:a[2]};
+  const g=depBlock(sizeMm.map(x=>x/IN));
+  return {dev:depOf(g.P0,g.v),v:g.v*LB2KG,P:g.P0*LB2KG,cls:g.cls,info:`${g.txt} → ${usd(g.v*LB2KG)}`};
 }
 
 /* ---------- Solução ---------- */
@@ -1027,15 +1054,14 @@ function render(){
         <tr data-i="${i}" data-f="${bi.f}"><td><b style="color:var(${COLORS[i%COLORS.length]})">${multi?'Feedstock '+bi.lab+(bi.m>1?' ×'+bi.m:'')+' · ':''}Offall ${i+1}</b></td>
         <td class="r num">${Lc(o.size[0],0)} × ${Lc(o.size[1],0)} × ${Lc(o.size[2],0)}</td>
         <td class="r num">${Wu(o.kg*bi.m,1)}</td>
-        <td class="num">${o.slot?'Unused slot(s) in V\'\' · ':''}Band ${o.m.band} · thk ${nf(o.m.small,1)}" · ${o.m.ok?'meets':'doesn\'t meet'} dim. → ${usd(o.m.v)} <span class="pctnote">(material ${usd(o.m.P)})</span></td>
+        <td class="num">${o.slot?'Unused slot(s) in V\'\' · ':''}${o.m.info}</td>
         <td class="r"><span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span></td>
         <td class="r num">${DV(o.dev*o.kg*bi.m,'BL')}</td></tr>`).join('')).join(''):`<tr><td><b>Offall</b></td><td colspan="5" class="note">No leftover: the Feedstock dimension matches V'' in this cut.</td></tr>`}</tbody>
       <tfoot><tr><td>Total</td><td></td><td class="r num">${Wu(totKg,1)}</td><td>${DEV$?'Total amount devalued':'Weighted depreciated weight'}</td><td class="r"><span class="pill ${classOf(totKg?lossKg/totKg:0)}">${pct(totKg?lossKg/totKg:0)}</span></td><td class="r num">${DV(lossKg,'BL')}</td></tr></tfoot>
     </table></div>
     <details><summary>How the depreciation is found</summary>
-      <p class="note">Spreadsheet Devaluation_v7.xlsx, tab "Rules_Blocks". Each Offall has its 3 dimensions sorted (smallest, intermediate, largest). The smallest dimension (the Thickness), in inches, defines the band. If the intermediate and the largest meet the band minimums, the "if met" value applies; otherwise, the "if not met" value (in $/${MUl()}). Equality counts as met. Depreciation is (price of the material selected in Costing − Offall value) ÷ material price, limited to 0%–100%.</p>
-      <div class="tablewrap"><table><thead><tr><th>Band</th><th class="r">Thickness ≥ (in)</th><th class="r">Thickness &lt; (in)</th><th class="r">Interm. ≥ (${LUl()})</th><th class="r">Largest ≥ (${LUl()})</th><th class="r">If met ($/${MUl()})</th><th class="r">If not met ($/${MUl()})</th></tr></thead>
-      <tbody>${RULES.map(x=>`<tr><td class="num">${x.n}</td><td class="r num">${x.minIn}</td><td class="r num">${x.maxIn}</td><td class="r num">${Lc(x.mid,1)}</td><td class="r num">${Lc(x.big,1)}</td><td class="r num">${nf(PP(x.ok),2)}</td><td class="r num">${nf(PP(x.no),2)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="note">Spreadsheet Depreciation_model_proposal_v5.xlsx, tab "PFR". The Offall's 3 dimensions are sorted; the middle one is the width W (it selects the reference price P0) and the volume gives the size factor v = volume ÷ nominal block volume. Value ($/${MUl()}) = P0 × R(v), where R depends on v (zones A, B, C). Pieces thinner than the remnant / scrap thickness take the fixed Remnant / Scrap value. Depreciation = 1 − value ÷ P0 (P0 of the PFR tab, not the price of the material selected in Costing).</p>
+      ${depRulesHtml('b')}
     </details>
   </section>
 
@@ -1178,47 +1204,31 @@ const ringAgg=(rings,od)=>rings.length?{Do:Math.max(...rings.map(g=>g.Do)),Di:od
 const ringTxt=rx=>rx.rings.map(g=>`OD ${Lc(g.Do,1)} · ID ${Lc(g.Di,1)} × ${Lc(g.L,1)}`).join('<br>');
 const ringNote=(label,I,rx)=>`${label} with OD (${Lu(I.od,1)}) smaller than the Feedstock ${rx.rings.length>1?'ODs':'OD'} (${rx.rings.map(g=>Lu(g.Do,1)).join(' / ')}): the ${Wu(rx.kg,1)} excess is 100% machined away and counts as depreciation with a 100% loss.`;
 const cutNote=r=>r.I.collar&&r.pl?`<p class="note" style="margin:8px 0 0">Collar cut order: ${r.pl.canS?`cutting starts at the free end of the Small OD section and continues in sequence (${Lu(r.pl.us,1)} in the small OD section${r.pl.ul>0?`, then ${Lu(r.pl.ul,1)} into the large OD section`:''}).`:'the demanded OD is larger than the Small OD, so cutting starts at the free end of the large OD section.'}</p>`:'';
-/* Devaluation_v7.xlsx, abas Rules_Rods / Rules_Rounds / Rules_Collars. Valores digitados em $/lb (convertidos para $/kg internamente).
-   Faixa de comprimento = L(offall) ÷ L(original do material): ≥80% | 60–80% | 40–60% | 20–40% | <20%. Linha por øext (exato ±0,02" ou o øext imediatamente abaixo). */
 const ROD_RULES_READY=true;
-const LB2KG=2.20462, TOL_IN=0.02, BAND_LB=[0.8,0.6,0.4,0.2], BAND_TXT=['≥ 80%','60–80%','40–60%','20–40%','< 20%'];
-const ROD_V7=__D.devaluation.rods;
-const RND_V7=__D.devaluation.rounds;
-const RND_LIM=24, RND_ABS=[[1,0],[4,0.9072]];                     // OD ≤ 24" follows rods; L<1" → 0; 1"≤L<4" → $0,9072/lb
-const bandOf=ratio=>{ratio=Math.round(ratio*1e6)/1e6;let b=1;BAND_LB.forEach(x=>{if(ratio<x)b++});return b};
-const rowOf=(tbl,dIn)=>{let r=null;tbl.forEach(x=>{if(x[0]<=dIn+TOL_IN)r=x});return r};
-/* Values one segment (OD, L in mm) against the original material (P in $/kg internal, Lo in inches). useRounds: table choice by OD. */
-function segV7(dMm,lMm,P,Lo,forceRods){
-  const dIn=dMm/IN, lIn=lMm/IN, useRnd=!forceRods&&dIn>RND_LIM+1e-9;
-  const tag=r=>Math.abs(r[0]-dIn)<=TOL_IN?`ø${r[0]}"`:`ø${nf(dIn,2)}" → row ø${r[0]}"`;
-  if(useRnd){
-    if(lIn<RND_ABS[0][0]-1e-9) return {v:RND_ABS[0][1]*LB2KG,txt:`Round ø${nf(dIn,2)}" · L ${nf(lIn,1)}" < 1"`};
-    if(lIn<RND_ABS[1][0]-1e-9) return {v:RND_ABS[1][1]*LB2KG,txt:`Round ø${nf(dIn,2)}" · 1" ≤ L ${nf(lIn,1)}" < 4"`};
-  }
-  const tbl=useRnd?RND_V7:ROD_V7, r=rowOf(tbl,dIn), kind=useRnd?'Round':'Rod';
-  if(!r) return {v:P,na:true,txt:`${kind} ø${nf(dIn,2)}" below the smallest table row (${tbl[0][0]}") — no rule, no depreciation`};
-  const ratio=lIn/Lo, bd=bandOf(ratio);
-  return {v:r[1][bd-1]*LB2KG,txt:`${kind} ${tag(r)} · L ${nf(lIn,1)}" = ${nf(ratio*100,0)}% of ${nf(Lo,0)}" (band ${bd}, ${BAND_TXT[bd-1]})`};
+/* One rod / round piece (OD and L in inches; collar: two ODs and two lengths). p = parameters of the sheet (PRD-N or PDF-N). */
+function depLen(p,od,L,od2,L2){
+  const collar=od2>0, leff=collar?L+L2:L, P0=collar?p.w*p0Of(p.p0,Math.min(od,od2))+(1-p.w)*p0Of(p.p0,Math.max(od,od2)):p0Of(p.p0,od);
+  const x=Math.min(1,leff/p.lnom), shape=collar?`Collar ø${nf(od,2)}" × ${nf(L,1)}" + ø${nf(od2,2)}" × ${nf(L2,1)}" (L total ${nf(leff,1)}")`:`ø${nf(od,2)}" × ${nf(L,1)}"`;
+  if(r6(leff)<p.scrL) return {v:p.scrV,P0,cls:'Scrap',txt:`${shape} · L ${nf(leff,1)}" < ${p.scrL}" → Scrap`};
+  if(r6(leff)<p.remL) return {v:p.remV,P0,cls:'Remnant',txt:`${shape} · L ${nf(leff,1)}" < ${p.remL}" → Remnant`};
+  const g=retention(x,p.xa,p.xb,p.ra,p.rb,p.rmin);
+  return {v:Math.max(p.floor,P0*g.R),P0,cls:'Offall',txt:`${shape} · P0 $ ${nf(PP(P0*LB2KG),2)} · length ${nf(x*100,0)}% of ${p.lnom}" (zone ${g.z}, R ${nf(g.R*100,1)}%)`};
 }
-/* Offall (rod / collar) valued with the v7 rules. forceRods: plain rod offall of the Rods tab always uses the Rods table. */
-function valueV7(off,P,Lo,forceRods){
-  const out=(v,txt,na)=>({dev:depOf(P,v),v,P,na:!!na,info:`${txt} → ${usd(v)} (material ${usd(P)})`});
-  if(off.type!=='collar'){
-    const g=segV7(off.D,off.L,P,Lo,forceRods);
-    return g.na?{dev:0,na:true,info:g.txt}:out(g.v,g.txt);
-  }
-  const segs=[{d:off.d1,l:off.l1},{d:off.D2,l:off.l2}]; if(off.core)segs.push({d:off.core.d,l:off.core.l});
-  const act=segs.filter(g=>g.d>0&&g.l>0), vol=act.map(g=>g.d*g.d*g.l), tv=vol.reduce((a,b)=>a+b,0);
-  const res=act.map(g=>segV7(g.d,g.l,P,Lo,false));
-  if(res.length&&res.every(g=>g.na)) return {dev:0,na:true,info:res.map(g=>g.txt).join(' / ')};
-  const v=res.reduce((t,g,i)=>t+g.v*vol[i]/tv,0);
-  const txt='Collar by segments: '+res.map((g,i)=>`[${g.txt} · ${nf(vol[i]/tv*100,0)}% of weight → ${usd(g.v)}]`).join(' + ');
-  return out(v,txt);
+/* Offall of the Rods / Rounds tab. forceRods: the Rods tab always uses PRD-N; the Rounds tab uses PDF-N from OD 30" up and PRD-N below. */
+function valueDep(off,forceRods){
+  const pick=od=>(!forceRods&&r6(od)>=ROUND_MIN_OD)?['PDF-N',DEP.rounds]:['PRD-N',DEP.rods];
+  const one=(od,L,od2,L2)=>{const k=pick(od2>0?Math.max(od,od2):od), g=depLen(k[1],od,L,od2,L2); g.sheet=k[0]; return g};
+  let parts;                                                   // [{g, w}] weighted by volume (OD² × L)
+  if(off.type==='collar'){
+    const d1=off.d1/IN,l1=off.l1/IN,d2=off.D2/IN,l2=off.l2/IN;
+    parts=[{g:one(d1,l1,d2,l2),w:d1*d1*l1+d2*d2*l2}];
+    if(off.core&&off.core.d>0&&off.core.l>0){const c=off.core.d/IN,cl=off.core.l/IN; parts.push({g:one(c,cl),w:c*c*cl,core:true})}
+  }else parts=[{g:one(off.D/IN,off.L/IN),w:1}];
+  const tw=parts.reduce((t,x)=>t+x.w,0), v=parts.reduce((t,x)=>t+x.g.v*x.w/tw,0), P0=parts.reduce((t,x)=>t+x.g.P0*x.w/tw,0);
+  const txt=parts.map(x=>(parts.length>1?(x.core?'Tube core: ':'Collar: ')+nf(x.w/tw*100,0)+'% of weight · ':'')+x.g.sheet+' · '+x.g.txt+' → '+usd(x.g.v*LB2KG)).join(' + ');
+  return {dev:depOf(P0,v),v:v*LB2KG,P:P0*LB2KG,na:false,cls:parts[0].g.cls,info:parts.length>1?txt+' → weighted '+usd(v*LB2KG):txt};
 }
-function matchDevRod(off){
-  const m=RODPRICES[Math.min(rstate.mat,RODPRICES.length-1)];
-  return valueV7(off,m.kg,m.L,true);
-}
+function matchDevRod(off){ return valueDep(off,true) }
 const rstate={mat:0,view:{yaw:-0.55,pitch:0.38}};
 function rRead(){
   const g=gv;
@@ -1451,9 +1461,10 @@ function rRender(){
   </section>
 
   <section class="card">
-    <header style="flex-wrap:wrap"><h2>Devaluation</h2><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto;justify-content:flex-end">${devSeg('r')}<span class="tag">Rules – Rods</span></span></header>
-    ${off&&off.m&&off.m.na?'<div class="body"><div class="sample">'+off.m.info+'. No applicable row in the "Rules - Rods" tab: the Offall shows no depreciation and the cost does not add depreciated weight.</div></div>':''}
-    <div class="body"><p class="note" style="margin:0">Spreadsheet Devaluation_v7.xlsx, tab "Rules_Rods": the row is chosen by the Offall OD (exact ±0.02", otherwise the OD immediately below; above 24" the 24" row; below 2" no rule, no depreciation). The column is the length band = L(offall) ÷ L(original ${RODPRICES[Math.min(rstate.mat,RODPRICES.length-1)].L}") : ≥ 80% | 60–80% | 40–60% | 20–40% | &lt; 20%. Each cell is the Offall value in $/${MUl()}. Depreciation = (price of the material selected in Costing − Offall value) ÷ material price, limited to 0%–100%. Collar (tab "Rules_Collars"): split into its large-OD and small-OD segments; each is valued with its own OD and L (Rods table up to 24", Rounds table above) and the Offall value is the sum weighted by segment volume (OD² × L). Bands 2–4 are provisional prices in the spreadsheet.</p></div>
+    <header style="flex-wrap:wrap"><h2>Devaluation</h2><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto;justify-content:flex-end">${devSeg('r')}<span class="tag">Tab PRD-N</span></span></header>
+    ${off&&off.m&&off.m.na?'<div class="body"><div class="sample">'+off.m.info+'. No depreciation rule applies: the Offall shows no depreciation and the cost does not add depreciated weight.</div></div>':''}
+    <div class="body"><p class="note" style="margin:0">Spreadsheet Depreciation_model_proposal_v5.xlsx, tab "PRD-N". Value ($/${MUl()}) = P0(OD) × R(x), x = MIN(1, L ÷ ${DEP.rods.lnom}"). R is ${nf(DEP.rods.ra*100,1)}% for x ≥ ${DEP.rods.xa}, ${nf(DEP.rods.rb*100,1)}% for x ≥ ${DEP.rods.xb} and falls linearly to ${nf(DEP.rods.rmin*100,1)}% below that. Pieces shorter than ${DEP.rods.remL}" are Remnant (fixed value) and shorter than ${DEP.rods.scrL}" are Scrap. Collar: P0 is a blend of the two ODs and L is the total length. Depreciation = 1 − value ÷ P0 (P0 of the tab, not the price of the material selected in Costing).</p></div>
+    <details style="margin:6px 0 0"><summary>Rules used</summary>${depRulesHtml('r')}</details>
     ${off||r.ringX?`<div class="tablewrap"><table>
       <thead><tr><th>Block</th><th>Dimensions (${LUl()})</th><th class="r">Weight</th><th>Rule applied</th><th class="r">Depreciation</th><th class="r">${DVH()}</th></tr></thead>
       <tbody>${offItems.map((it,i)=>{const o=it.o,ok=oOk(o);return `<tr><td><b style="color:var(--off${it.c})">Offall ${i+1}${it.m>1?' ×'+it.m:''}</b></td><td class="num">${o.type==='collar'?`ø${Lc(o.d1,1)} × ${Lc(o.l1,1)} + ø${Lc(o.D2,1)} × ${Lc(o.l2,1)}${o.core?` + core ø${Lc(o.core.d,1)} × ${Lc(o.core.l,1)}`:''}`:`ø${Lc(o.D,1)} × ${Lc(o.L,1)}`}</td><td class="r num">${Wu(o.kg*it.m,1)}</td><td class="note">${o.m?o.m.info:'awaiting rules'}</td><td class="r num">${ok?pct(o.dev):'—'}</td><td class="r num">${ok?DV(o.dev*o.kg*it.m,'RD'):'—'}</td></tr>`}).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RD')}</td></tr>`:''}</tbody>
@@ -1499,12 +1510,11 @@ document.querySelectorAll('#tab-rods .side input').forEach(i=>i.addEventListener
 /* 2026 Ei6 Machining price list_detail_Oct26.xlsx, aba "2026 Master Price List": coluna "Nominal Size" e "Price Per lb" (só itens com preço). Seção "PDF-N Molded Rounds". kg = $/lb ÷ 0,45359237. */
 const ROUNDPRICES=__D.prices_rounds;
 
-/* Rounds: Devaluation_v7.xlsx, aba Rules_Rounds (rule 0: OD ≤ 24" follows the Rods table; rules 1–2 by absolute L; L ≥ 4" table by OD and length band). */
+/* Rounds: sheet PDF-N for OD ≥ 30", PRD-N below; collar Offall by its two ODs; tube core valued as a plain round. */
 const ROUND_RULES_READY=true;
 function matchDevRound(off){
-  const D=off.type==='collar'?1:off.D; if(off.type!=='collar'&&!(D>0)) return null;
-  const m=ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)];
-  return valueV7(off,m.kg,m.L,false);
+  if(off.type!=='collar'&&!(off.D>0)) return null;
+  return valueDep(off,false);
 }
 const qstate={mat:0,price:'',view:{yaw:-0.55,pitch:0.38}};
 function qRead(){
@@ -1641,9 +1651,11 @@ function qRender(){
     ${offs.some(o=>o.type==='collar')?'<p class="note" style="margin:8px 0 0">Collar Offall: small OD for L small OD, then the large OD for L large OD. Depreciation uses only the small OD and the total L (L small OD + L large OD).</p>':''}
     ${r.tube?`<p class="note" style="margin:8px 0 0">Offall OD (${Lu(r.dm,1)}) + allowance (${Lu(I.aI,1)}) = Tube ID (${Lu(I.id,1)}).</p>`:''}</section>
   <section class="card">
-    <header style="flex-wrap:wrap"><h2>Devaluation</h2><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto;justify-content:flex-end">${devSeg('q')}<span class="tag">Rules – Rounds</span></span></header>
-    ${naMsg?`<div class="body"><div class="sample">${naMsg}. No applicable row in the "Rules - Rounds" tab: the Offall shows no depreciation and the cost does not add its depreciated weight.</div></div>`:''}
-    <div class="body"><p class="note" style="margin:0">Spreadsheet Devaluation_v7.xlsx, tab "Rules_Rounds": Offall with OD ≤ 24" follows the Rods table (Rules_Rods). Above 24": L &lt; 1" → $ 0/${MUl()}; 1" ≤ L &lt; 4" → $ ${nf(PP(0.9072*LB2KG),2)}/${MUl()}; L ≥ 4" → table by OD (row exact ±0.02" or the OD immediately below; above 60" the 60" row) and length band = L(offall) ÷ L(original ${ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)].L}"). Collar Offall (tab "Rules_Collars"): each OD segment is valued separately and weighted by volume. Bands 2–4 are provisional prices in the spreadsheet. Depreciation = (price of the material selected in Costing − Offall value) ÷ material price, limited to 0%–100%.</p></div>
+    <header style="flex-wrap:wrap"><h2>Devaluation</h2><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto;justify-content:flex-end">${devSeg('q')}<span class="tag">Tabs PDF-N / PRD-N</span></span></header>
+    ${naMsg?`<div class="body"><div class="sample">${naMsg}. No depreciation rule applies: the Offall shows no depreciation and the cost does not add its depreciated weight.</div></div>`:''}
+    <div class="body"><p class="note" style="margin:0">Spreadsheet Depreciation_model_proposal_v5.xlsx. Offall with OD ≥ ${ROUND_MIN_OD}" uses tab "PDF-N" (rounds); smaller OD uses tab "PRD-N" (rods). Value ($/${MUl()}) = P0(OD) × R(x), x = MIN(1, L ÷ nominal length) (PDF-N ${DEP.rounds.lnom}", PRD-N ${DEP.rods.lnom}"). Remnant / Scrap pieces (short L) take fixed values. Collar: P0 blends the two ODs and L is the total length; a tube core is valued as a plain round. Depreciation = 1 − value ÷ P0 (P0 of the tab, not the price of the material selected in Costing). New Offall: no age effect.</p></div>
+    <details style="margin:6px 0 0"><summary>PDF-N rules (OD ≥ ${ROUND_MIN_OD}")</summary>${depRulesHtml('q')}</details>
+    <details style="margin:6px 0 0"><summary>PRD-N rules (OD &lt; ${ROUND_MIN_OD}")</summary>${depRulesHtml('r')}</details>
     ${offs.length||r.ringX?`<div class="tablewrap"><table>
       <thead><tr><th>Offall</th><th>Dimensions (${LUl()})</th><th class="r">Weight</th><th>Rule applied</th><th class="r">Depreciation</th><th class="r">${DVH()}</th></tr></thead>
       <tbody>${fItems.map(fi=>fi.offs.map((o,i)=>`<tr><td><b style="color:var(--off${i+1})">${multi?'Feedstock '+fi.f+(fi.m>1?' ×'+fi.m:'')+' · ':''}Offall ${i+1}</b></td><td class="num">${dimsOf(o)}</td><td class="r num">${Wu(o.kg*fi.m,1)}</td><td class="note">${o.m?o.m.info:''}</td><td class="r num">${o.m&&!o.m.na?pct(o.dev):'—'}</td><td class="r num">${o.m&&!o.m.na?DV(o.dev*o.kg*fi.m,'RN'):'—'}</td></tr>`).join('')).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RN')}</td></tr>`:''}</tbody>
@@ -2073,8 +2085,8 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
   const cell=c=>{let col=null;const b=c.querySelector('b[style*="var(--"]');if(b){const m=/var\((--[\w-]+)\)/.exec(b.getAttribute('style'));if(m&&XC.off[m[1]])col=XC.off[m[1]]}return {t:rClean(c.textContent),span:c.colSpan||1,r:c.classList.contains('r'),col}};
   const grab=t=>({head:[...t.querySelectorAll(':scope > thead > tr')].map(tr=>[...tr.children].map(cell)),body:[...t.querySelectorAll(':scope > tbody > tr')].map(tr=>[...tr.children].map(cell)),foot:[...t.querySelectorAll(':scope > tfoot > tr')].map(tr=>[...tr.children].map(cell))});
   const dv=rWithWeight(k,()=>{const c=rCard(main,'Devaluation'); if(!c)return null;
-    const tg=c.querySelector('header .tag'), ts=[...c.querySelectorAll('table')];
-    return {tag:tg?rClean(tg.textContent):'',t0:ts[0]?grab(ts[0]):null,rules:ts[1]?grab(ts[1]):null,notes:[...c.querySelectorAll('p.note')].map(n=>rClean(n.textContent))}});
+    const tg=c.querySelector('header .tag'), ts=[...c.querySelectorAll('table')], t0=ts.find(t=>!t.closest('details')), rl=ts.filter(t=>t.closest('details'));
+    return {tag:tg?rClean(tg.textContent):'',t0:t0?grab(t0):null,rules:rl.length?rl.map(grab):null,notes:[...c.querySelectorAll('p.note')].map(n=>rClean(n.textContent))}});
 
   const ws=wb.addWorksheet(sheetName,{views:[{showGridLines:false}],pageSetup:{paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2}}});
   [2,34,15,15,15,15,15,15,15,2,3].forEach((w,i)=>{ws.getColumn(i+1).width=w}); ws.getColumn(11).hidden=true;
@@ -2153,8 +2165,8 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
     const mapRow=cells=>cells;
     grid(dv.t0.head.map(h=>h.map((c,i)=>({...c,r:i===2||i>=4}))),dv.t0.body.map(b=>b.map((c,i)=>({...c,r:b.length>1&&(i===2||i>=4)}))),[1,1,1,3,1,1],dv.t0.foot.map(f=>f.map((c,i)=>({...c,r:i===2||i>=4}))));
     dv.notes.forEach(n=>para(n,{sz:8.5}));
-    if(dv.rules){y++;put(y,X0,X1,'DEPRECIATION RULES USED',{color:XC.brand,b:true,sz:9,wrap:false});y++;
-      const n=dv.rules.head[0].length; grid(dv.rules.head.map(h=>h.map(c=>({...c,r:false}))),dv.rules.body.map(b=>b.map((c,i)=>({...c,r:i>0}))),Array(n).fill(1))}
+    if(dv.rules)dv.rules.forEach((rt0,ri)=>{y++;put(y,X0,X1,'DEPRECIATION RULES USED'+(dv.rules.length>1?(ri===0?' · PDF-N':' · PRD-N'):''),{color:XC.brand,b:true,sz:9,wrap:false});y++;
+      const n=rt0.head[0].length; grid(rt0.head.map(h=>h.map(c=>({...c,r:false}))),rt0.body.map(b=>b.map((c,i)=>({...c,r:i===n-1&&n>1}))),n===3?[1,4,3]:Array(n).fill(1))});
   }else para('No Offall to depreciate.');
 
   /* 4 */
@@ -2529,37 +2541,65 @@ pafView();
   }
   const cell = (ws, r, c) => val(ws.getCell(r, c));
 
-  /* ---------- Devaluation workbook (Rules_Blocks / Rules_Rods / Rules_Rounds) ---------- */
-  function odTable(ws, headerText, label) {
-    let hr = 0;
-    ws.eachRow((row, r) => { if (!hr && norm(val(row.getCell(1))) === headerText) hr = r; });
-    if (!hr) throw new Error(label + ': header "' + headerText + '" not found');
-    const out = [];
-    for (let r = hr + 1; r <= ws.rowCount; r++) {
-      const od = num(cell(ws, r, 1));
-      if (od == null) break;
-      const b = [2, 3, 4, 5, 6].map(c => num(cell(ws, r, c)));
-      if (b.some(x => x == null || x < 0)) throw new Error(label + ' row ' + r + ': the 5 band values must be numbers');
-      out.push([od, b.map(r9)]);
+  /* ---------- Depreciation workbook (sheets PFR = blocks, PRD-N = rods, PDF-N = rounds) ----------
+     Parameters are read by their LABEL in column A (so inserted rows do not break the import). Prices stay in $/lb, lengths in inches. */
+  function findNum(ws, re, col, label) {
+    for (let r = 1; r <= 80; r++) {
+      const t = norm(cell(ws, r, 1));
+      if (t && re.test(t)) {
+        const v = num(cell(ws, r, col));
+        if (v == null) throw new Error(label + ': the value next to "' + t + '" must be a number');
+        return v;
+      }
     }
-    if (!out.length) throw new Error(label + ': no rows');
+    throw new Error(label + ': parameter not found (' + re + ')');
+  }
+  function p0Table(ws, re, label) {
+    let hr = 0;
+    for (let r = 1; r <= 40 && !hr; r++) if (re.test(norm(cell(ws, r, 1)))) hr = r;
+    if (!hr) throw new Error(label + ': reference price table not found');
+    const out = [];
+    for (let r = hr + 1; r <= hr + 30; r++) {
+      const a = num(cell(ws, r, 1)); if (a == null) break;
+      const p = num(cell(ws, r, 2));
+      if (p == null || p < 0) throw new Error(label + ' row ' + r + ': P0 must be a number');
+      if (out.length && a <= out[out.length - 1][0]) throw new Error(label + ' row ' + r + ': the "from" column must be increasing');
+      out.push([r9(a), r9(p)]);
+    }
+    if (!out.length) throw new Error(label + ': empty reference price table');
     return out;
   }
-  function devaluation(wb, srcName) {
-    const wsB = sheet(wb, 'Rules_Blocks'), blocks = [];
-    for (let r = 5; r <= 40; r++) {
-      const n = num(cell(wsB, r, 1)); if (n == null) break;
-      const v = [2, 3, 4, 5, 6, 7].map(c => num(cell(wsB, r, c)));
-      if (v.some(x => x == null)) throw new Error('Rules_Blocks row ' + r + ': values must be numbers');
-      blocks.push({ n, minIn: r9(v[0]), maxIn: r9(v[1]), mid: r9(v[2] * IN), big: r9(v[3] * IN), ok: r9(v[4] * LB2KG), no: r9(v[5] * LB2KG) });
-    }
-    if (blocks.length < 3) throw new Error('Rules_Blocks: fewer than 3 bands found');
-    return {
-      source: srcName || 'Devaluation workbook', blocks,
-      rods: odTable(sheet(wb, 'Rules_Rods'), 'OD (in)', 'Rules_Rods'),
-      rounds: odTable(sheet(wb, 'Rules_Rounds'), 'OD (in)', 'Rules_Rounds'),
+  const unit01 = (v, label) => { if (v < 0 || v > 1) throw new Error(label + ': must be between 0 and 1'); return r9(v); };
+  function lenSheet(wb, name) {
+    const ws = sheet(wb, name), g = (re, col) => r9(findNum(ws, re, col || 2, name));
+    const p = {
+      p0: p0Table(ws, /^OD from/i, name), lnom: g(/^Nominal length/i),
+      ra: unit01(g(/^A\s*[–-]/, 3), name + ' R_A'), rb: unit01(g(/^B\s*[–-]/, 3), name + ' R_B'), rmin: unit01(g(/^C\s*[–-]/, 3), name + ' R_min'),
+      xa: g(/^X_A/i), xb: g(/^X_B/i), floor: g(/^Floor/i), ageDays: g(/^Age threshold/i), raAged: unit01(g(/^R_A if aged/i), name + ' R_A aged'),
+      remL: g(/REMNANT \(in\)/i), remV: g(/^Remnant value/i), scrL: g(/SCRAP \(in\)/i), scrV: g(/^Scrap value/i), w: unit01(g(/^Weight of the SMALLER/i), name + ' collar weight'),
     };
+    if (!(p.lnom > 0)) throw new Error(name + ': nominal length must be positive');
+    if (!(p.xb > 0 && p.xb < p.xa && p.xa <= 1)) throw new Error(name + ': need 0 < X_B < X_A ≤ 1');
+    if (!(p.scrL < p.remL)) throw new Error(name + ': the scrap threshold must be lower than the remnant threshold');
+    return p;
   }
+  function blockSheet(wb) {
+    const name = 'PFR', ws = sheet(wb, name), g = (re, col) => r9(findNum(ws, re, col || 2, name));
+    const p = {
+      p0: p0Table(ws, /^Width from/i, name), vnom: g(/^Nominal block volume/i),
+      ra: unit01(g(/^A\s*[–-]/, 3), name + ' R_A'), rb: unit01(g(/^B\s*[–-]/, 3), name + ' R_B'), rmin: unit01(g(/^C\s*[–-]/, 3), name + ' R_min'),
+      va: g(/^V_A/i), vb: g(/^V_B/i), floor: g(/^Floor/i), bulk: g(/^Bulk plate/i),
+      remT: g(/REMNANT \(in\)/i), remV: g(/^Remnant value/i), scrT: g(/SCRAP \(in\)/i), scrV: g(/^Scrap value/i),
+    };
+    if (!(p.vnom > 0)) throw new Error(name + ': nominal volume must be positive');
+    if (!(p.vb > 0 && p.vb < p.va && p.va <= 1)) throw new Error(name + ': need 0 < V_B < V_A ≤ 1');
+    if (!(p.scrT < p.remT)) throw new Error(name + ': the scrap threshold must be lower than the remnant threshold');
+    return p;
+  }
+  function devaluation(wb, srcName) {
+    return { source: srcName || 'Depreciation workbook', version: 5, blocks: blockSheet(wb), rods: lenSheet(wb, 'PRD-N'), rounds: lenSheet(wb, 'PDF-N') };
+  }
+
 
   /* ---------- Machining price list ("2026 Master Price List") ---------- */
   const NUM = '(\\d+(?:\\.\\d+)?)';
@@ -2653,11 +2693,11 @@ pafView();
 (function(){
   const KINDS=[
     {k:'prices',label:'Machining price list',hint:'"2026 Master Price List" sheet · prices of Blocks, Rods and Rounds',need:['prices_blocks','prices_rods','prices_rounds']},
-    {k:'devaluation',label:'Devaluation workbook',hint:'Rules_Blocks, Rules_Rods and Rules_Rounds sheets · depreciation rules',need:['devaluation']},
+    {k:'devaluation',label:'Depreciation workbook',hint:'PFR (blocks), PRD-N (rods) and PDF-N (rounds) sheets · depreciation model',need:['devaluation']},
     {k:'parma',label:'Parma M Aged Report',hint:'"Data" sheet · stock for the Material Digger',need:['parma_stock']}];
   const NAMES={prices_blocks:'block prices',prices_rods:'rod prices',prices_rounds:'round prices',parma_stock:'Parma stock lines'};
-  const cnt=(k,d)=>k==='devaluation'?(d.blocks.length+' block bands · '+d.rods.length+' rod diameters · '+d.rounds.length+' round diameters'):k==='parma_stock'?d.rows.length+' stock lines':d.length+' '+NAMES[k];
-  const size=(k,d)=>k==='devaluation'?d.blocks.length+d.rods.length+d.rounds.length:k==='parma_stock'?d.rows.length:d.length;
+  const cnt=(k,d)=>k==='devaluation'?('PFR · PRD-N · PDF-N parameters (model v'+d.version+')'):k==='parma_stock'?d.rows.length+' stock lines':d.length+' '+NAMES[k];
+  const size=(k,d)=>k==='devaluation'?(d.blocks.p0.length+d.rods.p0.length+d.rounds.p0.length):k==='parma_stock'?d.rows.length:d.length;
   const E=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const parsed={};            // dataset key -> data
   let ov=null;

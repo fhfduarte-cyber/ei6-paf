@@ -22,37 +22,65 @@
   }
   const cell = (ws, r, c) => val(ws.getCell(r, c));
 
-  /* ---------- Devaluation workbook (Rules_Blocks / Rules_Rods / Rules_Rounds) ---------- */
-  function odTable(ws, headerText, label) {
-    let hr = 0;
-    ws.eachRow((row, r) => { if (!hr && norm(val(row.getCell(1))) === headerText) hr = r; });
-    if (!hr) throw new Error(label + ': header "' + headerText + '" not found');
-    const out = [];
-    for (let r = hr + 1; r <= ws.rowCount; r++) {
-      const od = num(cell(ws, r, 1));
-      if (od == null) break;
-      const b = [2, 3, 4, 5, 6].map(c => num(cell(ws, r, c)));
-      if (b.some(x => x == null || x < 0)) throw new Error(label + ' row ' + r + ': the 5 band values must be numbers');
-      out.push([od, b.map(r9)]);
+  /* ---------- Depreciation workbook (sheets PFR = blocks, PRD-N = rods, PDF-N = rounds) ----------
+     Parameters are read by their LABEL in column A (so inserted rows do not break the import). Prices stay in $/lb, lengths in inches. */
+  function findNum(ws, re, col, label) {
+    for (let r = 1; r <= 80; r++) {
+      const t = norm(cell(ws, r, 1));
+      if (t && re.test(t)) {
+        const v = num(cell(ws, r, col));
+        if (v == null) throw new Error(label + ': the value next to "' + t + '" must be a number');
+        return v;
+      }
     }
-    if (!out.length) throw new Error(label + ': no rows');
+    throw new Error(label + ': parameter not found (' + re + ')');
+  }
+  function p0Table(ws, re, label) {
+    let hr = 0;
+    for (let r = 1; r <= 40 && !hr; r++) if (re.test(norm(cell(ws, r, 1)))) hr = r;
+    if (!hr) throw new Error(label + ': reference price table not found');
+    const out = [];
+    for (let r = hr + 1; r <= hr + 30; r++) {
+      const a = num(cell(ws, r, 1)); if (a == null) break;
+      const p = num(cell(ws, r, 2));
+      if (p == null || p < 0) throw new Error(label + ' row ' + r + ': P0 must be a number');
+      if (out.length && a <= out[out.length - 1][0]) throw new Error(label + ' row ' + r + ': the "from" column must be increasing');
+      out.push([r9(a), r9(p)]);
+    }
+    if (!out.length) throw new Error(label + ': empty reference price table');
     return out;
   }
-  function devaluation(wb, srcName) {
-    const wsB = sheet(wb, 'Rules_Blocks'), blocks = [];
-    for (let r = 5; r <= 40; r++) {
-      const n = num(cell(wsB, r, 1)); if (n == null) break;
-      const v = [2, 3, 4, 5, 6, 7].map(c => num(cell(wsB, r, c)));
-      if (v.some(x => x == null)) throw new Error('Rules_Blocks row ' + r + ': values must be numbers');
-      blocks.push({ n, minIn: r9(v[0]), maxIn: r9(v[1]), mid: r9(v[2] * IN), big: r9(v[3] * IN), ok: r9(v[4] * LB2KG), no: r9(v[5] * LB2KG) });
-    }
-    if (blocks.length < 3) throw new Error('Rules_Blocks: fewer than 3 bands found');
-    return {
-      source: srcName || 'Devaluation workbook', blocks,
-      rods: odTable(sheet(wb, 'Rules_Rods'), 'OD (in)', 'Rules_Rods'),
-      rounds: odTable(sheet(wb, 'Rules_Rounds'), 'OD (in)', 'Rules_Rounds'),
+  const unit01 = (v, label) => { if (v < 0 || v > 1) throw new Error(label + ': must be between 0 and 1'); return r9(v); };
+  function lenSheet(wb, name) {
+    const ws = sheet(wb, name), g = (re, col) => r9(findNum(ws, re, col || 2, name));
+    const p = {
+      p0: p0Table(ws, /^OD from/i, name), lnom: g(/^Nominal length/i),
+      ra: unit01(g(/^A\s*[–-]/, 3), name + ' R_A'), rb: unit01(g(/^B\s*[–-]/, 3), name + ' R_B'), rmin: unit01(g(/^C\s*[–-]/, 3), name + ' R_min'),
+      xa: g(/^X_A/i), xb: g(/^X_B/i), floor: g(/^Floor/i), ageDays: g(/^Age threshold/i), raAged: unit01(g(/^R_A if aged/i), name + ' R_A aged'),
+      remL: g(/REMNANT \(in\)/i), remV: g(/^Remnant value/i), scrL: g(/SCRAP \(in\)/i), scrV: g(/^Scrap value/i), w: unit01(g(/^Weight of the SMALLER/i), name + ' collar weight'),
     };
+    if (!(p.lnom > 0)) throw new Error(name + ': nominal length must be positive');
+    if (!(p.xb > 0 && p.xb < p.xa && p.xa <= 1)) throw new Error(name + ': need 0 < X_B < X_A ≤ 1');
+    if (!(p.scrL < p.remL)) throw new Error(name + ': the scrap threshold must be lower than the remnant threshold');
+    return p;
   }
+  function blockSheet(wb) {
+    const name = 'PFR', ws = sheet(wb, name), g = (re, col) => r9(findNum(ws, re, col || 2, name));
+    const p = {
+      p0: p0Table(ws, /^Width from/i, name), vnom: g(/^Nominal block volume/i),
+      ra: unit01(g(/^A\s*[–-]/, 3), name + ' R_A'), rb: unit01(g(/^B\s*[–-]/, 3), name + ' R_B'), rmin: unit01(g(/^C\s*[–-]/, 3), name + ' R_min'),
+      va: g(/^V_A/i), vb: g(/^V_B/i), floor: g(/^Floor/i), bulk: g(/^Bulk plate/i),
+      remT: g(/REMNANT \(in\)/i), remV: g(/^Remnant value/i), scrT: g(/SCRAP \(in\)/i), scrV: g(/^Scrap value/i),
+    };
+    if (!(p.vnom > 0)) throw new Error(name + ': nominal volume must be positive');
+    if (!(p.vb > 0 && p.vb < p.va && p.va <= 1)) throw new Error(name + ': need 0 < V_B < V_A ≤ 1');
+    if (!(p.scrT < p.remT)) throw new Error(name + ': the scrap threshold must be lower than the remnant threshold');
+    return p;
+  }
+  function devaluation(wb, srcName) {
+    return { source: srcName || 'Depreciation workbook', version: 5, blocks: blockSheet(wb), rods: lenSheet(wb, 'PRD-N'), rounds: lenSheet(wb, 'PDF-N') };
+  }
+
 
   /* ---------- Machining price list ("2026 Master Price List") ---------- */
   const NUM = '(\\d+(?:\\.\\d+)?)';

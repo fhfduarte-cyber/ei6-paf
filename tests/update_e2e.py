@@ -25,7 +25,7 @@ with sync_playwright() as p:
     pg.locator('input[data-k=prices]').set_input_files(X + 'mach.xlsx'); pg.locator('input[data-k=devaluation]').set_input_files(X + 'dev.xlsx'); pg.locator('input[data-k=parma]').set_input_files(X + 'parma.xlsx')
     pg.locator('.upd-st.ok').nth(2).wait_for(timeout=60000)
     st = [t.replace('\n', ' ') for t in pg.locator('.upd-st').all_inner_texts()]; print('  ', st)
-    check('summaries show counts', '34 block prices' in st[0] and '57 rod prices' in st[0] and '16 rod diameters' in st[1] and '1339 stock lines' in st[2], st)
+    check('summaries show counts', '34 block prices' in st[0] and '57 rod prices' in st[0] and 'model v5' in st[1] and '1339 stock lines' in st[2], st)
     check('Update still disabled without a password', pg.is_disabled('#upd-go'))
     pg.fill('#upd-pw', 'wrong-password'); pg.click('#upd-go'); pg.wait_for_timeout(800)
     check('wrong password refused with a clear message', 'Wrong unlock password' in pg.inner_text('.upd-dlg .msg'), pg.inner_text('.upd-dlg .msg'))

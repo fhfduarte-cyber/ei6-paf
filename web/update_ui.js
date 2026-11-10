@@ -2,11 +2,11 @@
 (function(){
   const KINDS=[
     {k:'prices',label:'Machining price list',hint:'"2026 Master Price List" sheet · prices of Blocks, Rods and Rounds',need:['prices_blocks','prices_rods','prices_rounds']},
-    {k:'devaluation',label:'Devaluation workbook',hint:'Rules_Blocks, Rules_Rods and Rules_Rounds sheets · depreciation rules',need:['devaluation']},
+    {k:'devaluation',label:'Depreciation workbook',hint:'PFR (blocks), PRD-N (rods) and PDF-N (rounds) sheets · depreciation model',need:['devaluation']},
     {k:'parma',label:'Parma M Aged Report',hint:'"Data" sheet · stock for the Material Digger',need:['parma_stock']}];
   const NAMES={prices_blocks:'block prices',prices_rods:'rod prices',prices_rounds:'round prices',parma_stock:'Parma stock lines'};
-  const cnt=(k,d)=>k==='devaluation'?(d.blocks.length+' block bands · '+d.rods.length+' rod diameters · '+d.rounds.length+' round diameters'):k==='parma_stock'?d.rows.length+' stock lines':d.length+' '+NAMES[k];
-  const size=(k,d)=>k==='devaluation'?d.blocks.length+d.rods.length+d.rounds.length:k==='parma_stock'?d.rows.length:d.length;
+  const cnt=(k,d)=>k==='devaluation'?('PFR · PRD-N · PDF-N parameters (model v'+d.version+')'):k==='parma_stock'?d.rows.length+' stock lines':d.length+' '+NAMES[k];
+  const size=(k,d)=>k==='devaluation'?(d.blocks.p0.length+d.rods.p0.length+d.rounds.p0.length):k==='parma_stock'?d.rows.length:d.length;
   const E=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const parsed={};            // dataset key -> data
   let ov=null;

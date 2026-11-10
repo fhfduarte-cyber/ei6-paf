@@ -1,0 +1,5 @@
+-- Depreciation model v5 (workbook Depreciation_model_proposal_v5.xlsx: sheets PFR, PRD-N, PDF-N).
+-- Replaces the old Devaluation_v7 rule tables. Safe to run more than once. The app also ships these values as built-in
+-- defaults, so deploy order (code vs. this migration) does not matter. Later updates: use "Update data" on the PAF page.
+insert into public.datasets(key,data) values ('devaluation', $ei6${"source":"Depreciation_model_proposal_v5.xlsx","version":5,"blocks":{"p0":[[0,2.95],[26,3.2],[40,3.55],[48,3.75]],"vnom":28800,"ra":0.68,"rb":0.5,"rmin":0.15,"va":0.6,"vb":0.04,"floor":0,"bulk":0.3,"remT":2,"remV":1,"scrT":1,"scrV":0},"rods":{"p0":[[0,3.4],[4.5,3.06],[14.5,2.9]],"lnom":72,"ra":0.7,"rb":0.52,"rmin":0.2,"xa":0.9,"xb":0.5,"floor":0,"ageDays":730,"raAged":0.7,"remL":12,"remV":1.25,"scrL":4,"scrV":0,"w":0.75},"rounds":{"p0":[[0,3],[28,3.25],[51,3.65],[58,4.45],[65,6]],"lnom":23,"ra":0.615,"rb":0.46,"rmin":0.23,"xa":0.9,"xb":0.5,"floor":0,"ageDays":730,"raAged":0.46,"remL":4,"remV":1,"scrL":1,"scrV":0,"w":0.75}}$ei6$::jsonb)
+  on conflict (key) do update set data = excluded.data;
