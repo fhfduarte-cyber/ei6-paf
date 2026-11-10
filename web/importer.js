@@ -103,7 +103,7 @@
       if (!cur) return;
       if (!a) { if (![2, 3, 4, 5].some(i => val(row.getCell(i)) != null)) cur = null; return; }
       if (a === 'Nominal Size') return;
-      secs[cur].push({ name: a, w: num(val(row.getCell(cols.w))), lb: num(val(row.getCell(cols.p))) });
+      secs[cur].push({ name: a, w: num(val(row.getCell(cols.w))), lb: num(val(row.getCell(cols.p))), q: num(val(row.getCell(2))) || 0 });   // q = pieces available (blank → 0 = not in stock)
     });
     const pick = (sec, n, grp) => {
       if (!secs[sec]) throw new Error('Section "' + sec + '" not found in the price list');
@@ -115,7 +115,7 @@
         if (grp) o.grp = grp;
         const lb6 = Math.round(x.lb * 1e6) / 1e6; o.lb = lb6;
         if (n === 2) o.L = d[1];
-        o.kg = r9(lb6 / 0.45359237); o.w = x.w; o.d = d;
+        o.kg = r9(lb6 / 0.45359237); o.w = x.w; o.d = d; o.q = x.q;
         out.push(o);
       });
       if (!out.length) throw new Error('Section "' + sec + '": no priced items');

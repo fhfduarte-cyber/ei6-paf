@@ -77,6 +77,9 @@ final class DatasetValidator
             $o['kg'] = self::n($r['kg'] ?? null, $k, 'price per kg', 0, 30000, false);
             $o['w'] = self::n($r['w'] ?? null, $k, 'weight', 0, 1e7, false);
             $o['d'] = array_map(fn ($x) => self::n($x, $k, 'dimension', 0, 100000, false), self::lst($r['d'] ?? null, $k, 'dimensions', $dims, $dims));
+            if (array_key_exists('q', $r)) {
+                $o['q'] = self::n($r['q'], $k, 'pieces available', 0, 1e9);
+            }
             $out[] = $o;
         }
         return $out;

@@ -419,7 +419,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
       </section>
       <section class="card">
         <header><h2>Feedstock</h2><span class="tag">Stock block</span></header>
-        <div class="body"><div class="fields">
+        <div class="body"><div class="sample" id="stkB" role="alert" hidden></div><div class="fields">
           <div class="field"><label for="nW">W · width</label><div class="inp"><input id="nW" type="number" min="1" step="any" value="635"><span>mm</span></div></div>
           <div class="field"><label for="nH">H · height</label><div class="inp"><input id="nH" type="number" min="1" step="any" value="508"><span>mm</span></div></div>
           <div class="field"><label for="nL">L · length</label><div class="inp"><input id="nL" type="number" min="1" step="any" value="1829"><span>mm</span></div></div>
@@ -457,7 +457,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
       </section>
       <section class="card">
         <header><h2>Feedstock</h2><label class="tg" for="rCollar"><input type="checkbox" id="rCollar">Collar</label></header>
-        <div class="body"><div class="fields two">
+        <div class="body"><div class="sample" id="stkR" role="alert" hidden></div><div class="fields two">
           <div class="dc" id="rPlain">
             <div class="field"><label for="rD">OD</label><div class="inp"><input id="rD" type="number" min="1" step="any" value="254"><span>mm</span></div></div>
             <div class="field"><label for="rL">L · length</label><div class="inp"><input id="rL" type="number" min="1" step="any" value="1829"><span>mm</span></div></div>
@@ -503,7 +503,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
       </section>
       <section class="card">
         <header><h2>Feedstock</h2><label class="tg" for="qCollar"><input type="checkbox" id="qCollar">Collar</label></header>
-        <div class="body"><div class="fields two">
+        <div class="body"><div class="sample" id="stkQ" role="alert" hidden></div><div class="fields two">
           <div class="dc" id="qPlain">
             <div class="field"><label for="qD">OD</label><div class="inp"><input id="qD" type="number" min="1" step="any" value="600"><span>mm</span></div></div>
             <div class="field"><label for="qL">L · length</label><div class="inp"><input id="qL" type="number" min="1" step="any" value="200"><span>mm</span></div></div>
@@ -542,6 +542,12 @@ const r6=x=>Math.round(x*1e6)/1e6;
 const depOf=(P,v)=>P>0?Math.max(0,Math.min(1,(P-v)/P)):0;
 const p0Of=(tbl,x)=>{let v=tbl[0][1];tbl.forEach(r=>{if(r6(x)>=r[0])v=r[1]});return v};
 const retention=(x,a,b,rA,rB,rMin)=>r6(x)>=a?{R:rA,z:'A'}:r6(x)>=b?{R:rB,z:'B'}:{R:rMin+(rB-rMin)*x/b,z:'C'};
+/* Stock quantity ("Qty (EA)" of the price list, field q): blank / 0 = the product is not in stock. Items without q (older data) give no warning. */
+const noStock=m=>!!m&&typeof m.q==='number'&&!(m.q>0);
+function stockWarn(id,m){
+  const e=$(id); if(!e)return; const bad=noStock(m);
+  e.hidden=!bad; e.textContent=bad?'Not in stock: "'+m.name+'" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.':'';
+}
 const usd=n=>'$ '+nf(PP(n),2)+'/'+MUl();
 const AX=['W','H','L'];
 const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
@@ -1072,7 +1078,7 @@ function render(){
         ${omSt('blocks').on?omHTML('blocks',cdual?cd.map(d=>dn(d.id)):['']):`
         ${PRICE_SAMPLE?'<div class="sample">Price List Trading not loaded yet. The prices below are examples.</div>':''}
         <div class="field"><label for="mat">Material · grade and size</label>
-          <select id="mat">${[...new Set(PRICES.map(p=>p.grp))].map(g=>`<optgroup label="${g}">${PRICES.map((p,i)=>p.grp===g?`<option value="${i}" ${i===state.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})</option>`:'').join('')}</optgroup>`).join('')}</select></div>
+          <select id="mat">${[...new Set(PRICES.map(p=>p.grp))].map(g=>`<optgroup label="${g}">${PRICES.map((p,i)=>p.grp===g?`<option value="${i}" ${i===state.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`:'').join('')}</optgroup>`).join('')}</select></div>
         ${matLow('BL')}${matCard('BL')}${xcHTML('blocks')}
         <dl class="dl num">
           ${cd.map(d=>`<dt>${r.mix?'Pieces (both groups)':dn(d.id)} · ${Wu(d.kg,2)} × ${d.Q} pcs</dt><dd>${Wu(d.w,2)} <span class="pctnote" title="Demand weight ÷ total calculation weight">(${nf(calcKg?d.w/calcKg*100:0,1)}%)</span></dd>`).join('')}
@@ -1092,6 +1098,7 @@ function render(){
     </div>
   </section>`;
   omInit();
+  stockWarn('stkB',PRICES[Math.min(state.mat,PRICES.length-1)]);
   if($('mat'))$('mat').onchange=e=>{state.mat=+e.target.value;render()}; window.__MCHP=window.__MCHP||{};(cdual?cd.forEach((d,i)=>mcSet('blocks','b'+i,omPrice('blocks',i,d.cost))):mcSet('blocks','b',omPrice('blocks',0,cd[0].cost)));xcShow('blocks');matBind(); if(cdual)cd.forEach((d,i)=>mchBind('b'+i)); else mchBind('b');
 
   // opções
@@ -1478,7 +1485,7 @@ function rRender(){
       <div class="in">
         ${omSt('rods').on?omHTML('rods',['']):`
         <div class="field"><label for="rmat">Material · grade and size</label>
-          <select id="rmat">${RODPRICES.map((p,i)=>`<option value="${i}" ${i===rstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})</option>`).join('')}</select></div>
+          <select id="rmat">${RODPRICES.map((p,i)=>`<option value="${i}" ${i===rstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>
         ${matLow('RD')}${matCard('RD')}${xcHTML('rods')}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
@@ -1497,6 +1504,7 @@ function rRender(){
     </div>
   </section>`;
   omInit();
+  stockWarn('stkR',RODPRICES[Math.min(rstate.mat,RODPRICES.length-1)]);
   if($('rmat'))$('rmat').onchange=e=>{rstate.mat=+e.target.value;rRender()}; window.__MCHP=window.__MCHP||{};mcSet('rods','r',omPrice('rods',0,pcCost));xcShow('rods');matBind(); mchBind('r');
   rPaint(); fsBind('r',rPaint);
   const st=$('rstage'); let drag=null;
@@ -1667,7 +1675,7 @@ function qRender(){
     <div class="cost">
       <div class="in">
         ${omSt('rounds').on?omHTML('rounds',['']):`
-        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})</option>`).join('')}</select></div>${matLow('RN')}${matCard('RN')}${xcHTML('rounds')}`
+        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>${matLow('RN')}${matCard('RN')}${xcHTML('rounds')}`
         :`<div class="field"><label for="qprice">Cost per kg · Price $/kg</label><div class="inp"><input id="qprice" type="number" min="0" step="any" value="${qstate.price}" placeholder="awaiting price list"><span>$/kg</span></div></div>`}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
@@ -1692,6 +1700,7 @@ function qRender(){
   };
   cost();
   omInit();
+  stockWarn('stkQ',ROUNDPRICES.length?ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)]:null);
   if($('qmat'))$('qmat').onchange=e=>{qstate.mat=+e.target.value;qRender()}; matBind(); mchBind('q');
   if($('qprice'))$('qprice').oninput=e=>{qstate.price=e.target.value;cost()};
   qPaint(); fsBind('q',qPaint);
@@ -2622,7 +2631,7 @@ pafView();
       if (!cur) return;
       if (!a) { if (![2, 3, 4, 5].some(i => val(row.getCell(i)) != null)) cur = null; return; }
       if (a === 'Nominal Size') return;
-      secs[cur].push({ name: a, w: num(val(row.getCell(cols.w))), lb: num(val(row.getCell(cols.p))) });
+      secs[cur].push({ name: a, w: num(val(row.getCell(cols.w))), lb: num(val(row.getCell(cols.p))), q: num(val(row.getCell(2))) || 0 });   // q = pieces available (blank → 0 = not in stock)
     });
     const pick = (sec, n, grp) => {
       if (!secs[sec]) throw new Error('Section "' + sec + '" not found in the price list');
@@ -2634,7 +2643,7 @@ pafView();
         if (grp) o.grp = grp;
         const lb6 = Math.round(x.lb * 1e6) / 1e6; o.lb = lb6;
         if (n === 2) o.L = d[1];
-        o.kg = r9(lb6 / 0.45359237); o.w = x.w; o.d = d;
+        o.kg = r9(lb6 / 0.45359237); o.w = x.w; o.d = d; o.q = x.q;
         out.push(o);
       });
       if (!out.length) throw new Error('Section "' + sec + '": no priced items');
