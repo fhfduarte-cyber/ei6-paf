@@ -419,7 +419,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
       </section>
       <section class="card">
         <header><h2>Feedstock</h2><span class="tag">Stock block</span></header>
-        <div class="body"><div class="sample" id="stkB" role="alert" hidden></div><div class="fields">
+        <div class="body"><div class="fields">
           <div class="field"><label for="nW">W · width</label><div class="inp"><input id="nW" type="number" min="1" step="any" value="635"><span>mm</span></div></div>
           <div class="field"><label for="nH">H · height</label><div class="inp"><input id="nH" type="number" min="1" step="any" value="508"><span>mm</span></div></div>
           <div class="field"><label for="nL">L · length</label><div class="inp"><input id="nL" type="number" min="1" step="any" value="1829"><span>mm</span></div></div>
@@ -457,7 +457,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
       </section>
       <section class="card">
         <header><h2>Feedstock</h2><label class="tg" for="rCollar"><input type="checkbox" id="rCollar">Collar</label></header>
-        <div class="body"><div class="sample" id="stkR" role="alert" hidden></div><div class="fields two">
+        <div class="body"><div class="fields two">
           <div class="dc" id="rPlain">
             <div class="field"><label for="rD">OD</label><div class="inp"><input id="rD" type="number" min="1" step="any" value="254"><span>mm</span></div></div>
             <div class="field"><label for="rL">L · length</label><div class="inp"><input id="rL" type="number" min="1" step="any" value="1829"><span>mm</span></div></div>
@@ -503,7 +503,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
       </section>
       <section class="card">
         <header><h2>Feedstock</h2><label class="tg" for="qCollar"><input type="checkbox" id="qCollar">Collar</label></header>
-        <div class="body"><div class="sample" id="stkQ" role="alert" hidden></div><div class="fields two">
+        <div class="body"><div class="fields two">
           <div class="dc" id="qPlain">
             <div class="field"><label for="qD">OD</label><div class="inp"><input id="qD" type="number" min="1" step="any" value="600"><span>mm</span></div></div>
             <div class="field"><label for="qL">L · length</label><div class="inp"><input id="qL" type="number" min="1" step="any" value="200"><span>mm</span></div></div>
@@ -545,10 +545,6 @@ const retention=(x,a,b,rA,rB,rMin)=>r6(x)>=a?{R:rA,z:'A'}:r6(x)>=b?{R:rB,z:'B'}:
 /* Stock quantity ("Qty (EA)" of the price list, field q): blank / 0 = the product is not in stock. Items without q (older data) give no warning. */
 const noStock=m=>!!m&&typeof m.q==='number'&&!(m.q>0);
 const stockMsg=m=>noStock(m)?`<div class="sample" role="alert">Not in stock: "${m.name}" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.</div>`:'';
-function stockWarn(id,m){
-  const e=$(id); if(!e)return; const bad=noStock(m);
-  e.hidden=!bad; e.textContent=bad?'Not in stock: "'+m.name+'" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.':'';
-}
 /* Machining steps offered in the Machine cost drop list (Parma work centres, without the "Parma-" prefix). A step saved earlier under another name stays selectable. */
 const MACH_STEPS=['FRIGGI','SAW','WELLS','MANUAL','HAWKER','SM LATHE','MED LATHE','LG LATHE','CORING','SM MILL','LG MILL','HR MILL','SANDER','AUTOCLAVE','BAKING','GLUE & BAKING'];
 const usd=n=>'$ '+nf(PP(n),2)+'/'+MUl();
@@ -1101,7 +1097,6 @@ function render(){
     </div>
   </section>`;
   omInit();
-  stockWarn('stkB',PRICES[Math.min(state.mat,PRICES.length-1)]);
   if($('mat'))$('mat').onchange=e=>{state.mat=+e.target.value;render()}; window.__MCHP=window.__MCHP||{};(cdual?cd.forEach((d,i)=>mcSet('blocks','b'+i,omPrice('blocks',i,d.cost))):mcSet('blocks','b',omPrice('blocks',0,cd[0].cost)));xcShow('blocks');matBind(); if(cdual)cd.forEach((d,i)=>mchBind('b'+i)); else mchBind('b');
 
   // opções
@@ -1507,7 +1502,6 @@ function rRender(){
     </div>
   </section>`;
   omInit();
-  stockWarn('stkR',RODPRICES[Math.min(rstate.mat,RODPRICES.length-1)]);
   if($('rmat'))$('rmat').onchange=e=>{rstate.mat=+e.target.value;rRender()}; window.__MCHP=window.__MCHP||{};mcSet('rods','r',omPrice('rods',0,pcCost));xcShow('rods');matBind(); mchBind('r');
   rPaint(); fsBind('r',rPaint);
   const st=$('rstage'); let drag=null;
@@ -1703,7 +1697,6 @@ function qRender(){
   };
   cost();
   omInit();
-  stockWarn('stkQ',ROUNDPRICES.length?ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)]:null);
   if($('qmat'))$('qmat').onchange=e=>{qstate.mat=+e.target.value;qRender()}; matBind(); mchBind('q');
   if($('qprice'))$('qprice').oninput=e=>{qstate.price=e.target.value;cost()};
   qPaint(); fsBind('q',qPaint);
