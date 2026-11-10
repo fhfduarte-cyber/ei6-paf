@@ -451,6 +451,8 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
           <div class="subhead">Material allowance</div>
           <div class="field" id="raIDf" hidden><label for="raID">ID</label><div class="inp"><input id="raID" type="number" min="0" step="any" value="3"><span>mm</span></div></div>
           <div class="field"><label for="raL">L</label><div class="inp"><input id="raL" type="number" min="0" step="any" value="10"><span>mm</span></div></div>
+          <div class="field" id="rcODf" hidden><label for="rcOD" title="Diameter of the core removed from the bore (cannot exceed Tube ID − ID allowance). Empty = automatic.">Core OD</label><div class="inp"><input id="rcOD" type="number" min="0" step="any" value="" placeholder="auto"><span>mm</span></div></div>
+          <div class="field" id="rcLf" hidden><label for="rcL" title="Length of the core. Empty = automatic (length of the pieces). Equal to the Feedstock length: only the core remains.">Core length</label><div class="inp"><input id="rcL" type="number" min="0" step="any" value="" placeholder="auto"><span>mm</span></div></div>
           <div class="subhead">Weight with allowance</div>
           <dl class="dl num pw" id="rpcw"></dl>
         </div></div>
@@ -497,6 +499,8 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
           <div class="subhead">Material allowance</div>
           <div class="field" id="qaIDf" hidden><label for="qaID">ID</label><div class="inp"><input id="qaID" type="number" min="0" step="any" value="3"><span>mm</span></div></div>
           <div class="field"><label for="qaL">L</label><div class="inp"><input id="qaL" type="number" min="0" step="any" value="5"><span>mm</span></div></div>
+          <div class="field" id="qcODf" hidden><label for="qcOD" title="Diameter of the core removed from the bore (cannot exceed Tube ID − ID allowance). Empty = automatic.">Core OD</label><div class="inp"><input id="qcOD" type="number" min="0" step="any" value="" placeholder="auto"><span>mm</span></div></div>
+          <div class="field" id="qcLf" hidden><label for="qcL" title="Length of the core. Empty = automatic (length of the pieces). Equal to the Feedstock length: only the core remains.">Core length</label><div class="inp"><input id="qcL" type="number" min="0" step="any" value="" placeholder="auto"><span>mm</span></div></div>
           <div class="subhead">Weight with allowance</div>
           <dl class="dl num pw" id="qpcw"></dl>
         </div></div>
@@ -1167,6 +1171,19 @@ const RODPRICES=__D.prices_rods;
 /* ---- Collar feedstock: when the demanded OD fits the Small OD (OD ≤ small OD), cutting STARTS at the free end of the Small OD section and CONTINUES
    sequentially along the axis (through the junction into the large-OD section) until all pieces are cut, regardless of yield elsewhere.
    Excess OD of each zone is machined away (100% loss). If OD > small OD, cutting starts at the free end of the large-OD section. ---- */
+/* Tube core (Rods / Rounds, plain Feedstock): cylinder Core OD × Core length that comes out of the bore. Empty fields = automatic (Core OD = bore of the blank = Tube ID − ID allowance;
+   Core length = length of the pieces). Core length = pieces' length → core + solid rest = Collar Offall; Core length = Feedstock length → only the core remains. The volume between the Core OD
+   and the bore (over the pieces) and the hollow ring beyond the pieces are machined away: 100% loss, listed with the excess OD stock. */
+function coreSpec(I,dm,used,Ltot,Dmaj){
+  const dc=I.cOD>0?I.cOD:dm, Lc0=I.cL>0?I.cL:used;
+  if(dc>dm+0.01) return {fatal:true,error:`Core OD (${Lu(dc,1)}) cannot be larger than the bore of the blank, Tube ID − ID allowance (${Lu(dm,1)}).`};
+  if(Lc0<used-0.01) return {fatal:true,error:`Core length (${Lu(Lc0,1)}) cannot be shorter than the total length of the pieces with allowance (${Lu(used,1)}).`};
+  if(Lc0>Ltot+0.01) return {fatal:true,error:`Core length (${Lu(Lc0,1)}) cannot be longer than the Feedstock length (${Lu(Ltot,1)}).`};
+  const Lc=Math.min(Lc0,Ltot), rings=[];
+  if(dm-dc>0.01) rings.push({Do:dm,Di:dc,L:used,z0:0,z1:used,core:true});
+  if(Lc-used>0.01) rings.push({Do:Dmaj,Di:dc,L:Lc-used,z0:used,z1:Lc,core:true});
+  return {dc,Lc,rings};
+}
 function collarPlan(I,Lpc,tube,dm,split){
   const canS=I.od<=I.d1+0.01, tol=1e-6, Ltot=I.l1+I.l2, used=I.Q*Lpc, cap=canS?Ltot:I.l2;
   if(used>cap+tol){
@@ -1207,7 +1224,11 @@ function collarPlan(I,Lpc,tube,dm,split){
 }
 const ringAgg=(rings,od)=>rings.length?{Do:Math.max(...rings.map(g=>g.Do)),Di:od,L:rings.reduce((t,g)=>t+g.L,0),rings,z0:rings[0].z0,z1:rings[0].z1}:null;
 const ringTxt=rx=>rx.rings.map(g=>`OD ${Lc(g.Do,1)} · ID ${Lc(g.Di,1)} × ${Lc(g.L,1)}`).join('<br>');
-const ringNote=(label,I,rx)=>`${label} with OD (${Lu(I.od,1)}) smaller than the Feedstock ${rx.rings.length>1?'ODs':'OD'} (${rx.rings.map(g=>Lu(g.Do,1)).join(' / ')}): the ${Wu(rx.kg,1)} excess is 100% machined away and counts as depreciation with a 100% loss.`;
+const ringNote=(label,I,rx)=>{
+  const od=rx.rings.filter(g=>!g.core), co=rx.rings.filter(g=>g.core), kgOf=a=>a.reduce((t,g)=>t+g.kg,0);
+  return (od.length?`${label} with OD (${Lu(I.od,1)}) smaller than the Feedstock ${od.length>1?'ODs':'OD'} (${od.map(g=>Lu(g.Do,1)).join(' / ')}): the ${Wu(kgOf(od),1)} excess is 100% machined away and counts as depreciation with a 100% loss.`:'')
+   +(od.length&&co.length?' ':'')+(co.length?`Core: the ${Wu(kgOf(co),1)} between the Core OD (${Lu(co[0].Di,1)}) and the bore of the blank${co.some(g=>g.Do>I.id)?' / the Feedstock OD beyond the pieces':''} is 100% machined away and counts as depreciation with a 100% loss.`:'');
+};
 const cutNote=r=>r.I.collar&&r.pl?`<p class="note" style="margin:8px 0 0">Collar cut order: ${r.pl.canS?`cutting starts at the free end of the Small OD section and continues in sequence (${Lu(r.pl.us,1)} in the small OD section${r.pl.ul>0?`, then ${Lu(r.pl.ul,1)} into the large OD section`:''}).`:'the demanded OD is larger than the Small OD, so cutting starts at the free end of the large OD section.'}</p>`:'';
 const ROD_RULES_READY=true;
 /* One rod / round piece (OD and L in inches; collar: two ODs and two lengths). p = parameters of the sheet (PRD-N or PDF-N). */
@@ -1239,13 +1260,14 @@ function rRead(){
   const g=gv;
   return {collar:$('rCollar').checked,mode:document.querySelector('input[name=rmode]:checked').value,
     D:g('rD'),L:g('rL'),d1:g('rD1'),l1:g('rL1'),D2:g('rD2'),l2:g('rL2'),rho:g('rDens'),
-    od:g('rdOD'),id:g('rdID'),len:g('rdL'),Q:Math.round(g('rQty')),aI:g('raID')||0,aL:g('raL')||0};
+    od:g('rdOD'),id:g('rdID'),len:g('rdL'),Q:Math.round(g('rQty')),aI:g('raID')||0,aL:g('raL')||0,cOD:g('rcOD'),cL:g('rcL')};
 }
 const cylKg=(d,l,rho)=>Math.PI/4*d*d*l/1e9*rho;
 function rSidebar(){
   const I=rRead(), tube=I.mode==='tube';
   $('rPlain').hidden=I.collar; $('rCollarF').hidden=!I.collar;
-  $('rdIDf').hidden=!tube; $('raIDf').hidden=!tube;
+  $('rdIDf').hidden=!tube; $('raIDf').hidden=!tube; $('rcODf').hidden=!tube; $('rcLf').hidden=!tube;
+  if(tube){const dm=I.id-I.aI,Lp=I.len+I.aL,auto=(id,v)=>{$(id).placeholder=v>0?'auto · '+Lc(v,1):'auto'};auto('rcOD',dm);auto('rcL',I.Q>0&&Lp>0?I.Q*Lp:0)}
   const nw=$('rnomw');
   const nomKg=I.collar?(I.d1>0&&I.l1>0&&I.D2>0&&I.l2>0&&I.rho>0?cylKg(I.d1,I.l1,I.rho)+cylKg(I.D2,I.l2,I.rho):null):(I.D>0&&I.L>0&&I.rho>0?cylKg(I.D,I.L,I.rho):null);
   nw.innerHTML=nomKg==null?'':(I.collar?`<dt>Total L</dt><dd>${Lu(I.l1+I.l2,1)}</dd>`:'')+`<dt>Total weight</dt><dd><b>${Wu(nomKg,1)}</b></dd>`;
@@ -1273,6 +1295,7 @@ function bad1(I){return [I.rho,I.Q,I.od,I.len].some(x=>!(x>0))}
 function rSolve(){
   const I=rRead(), r=rSolveOne(I);
   if(!r.error){r.agg=rAgg([{n:1,r}],I);return r}
+  if(r.fatal) return r;
   if(bad1(I)||!(I.Q>1)) return r;
   const one=rSolveOne({...I,Q:1}); if(one.error) return r;          // not even one piece fits: keep the original message
   let mx=1; while(mx<I.Q&&mx<5000&&!rSolveOne({...I,Q:mx+1}).error) mx++;
@@ -1300,7 +1323,7 @@ function rSolveOne(I){
     if(!(I.id>0)||I.id>=I.od) return {error:'For the Tube, enter an ID greater than zero and smaller than the OD.'};
     if(I.id-I.aI<=0) return {error:'The ID allowance is greater than or equal to the ID: the Collar small OD would be zero or negative.'};
   }
-  const Lpc=I.len+I.aL; let used, dems, rings=[], off=null, dm=null, pl=null;
+  const Lpc=I.len+I.aL; let used, dems, rings=[], off=null, dm=null, pl=null, coreRings=[];
   if(tube) dm=I.id-I.aI;
   if(I.collar){
     pl=collarPlan(I,Lpc,tube,dm); if(pl.error) return {error:pl.error};
@@ -1315,13 +1338,16 @@ function rSolveOne(I){
     dems=[{z0:0,z1:used,n:I.Q}];
     if(!tube){off=ok?{type:'rod',D:Dmaj,L:rest,parts:[{z0:used,z1:Ltot,r:Dmaj/2}]}:null}
     else{
-      const parts=[{z0:0,z1:used,r:dm/2}];
-      if(ok){parts.push({z0:used,z1:Ltot,r:Dmaj/2});off={type:'collar',d1:dm,l1:used,D2:Dmaj,l2:rest,parts}}
-      else off={type:'rod',D:dm,L:used,parts};
+      const cs=coreSpec(I,dm,used,Ltot,Dmaj); if(cs.error) return {error:cs.error,fatal:true};
+      const parts=[{z0:0,z1:cs.Lc,r:cs.dc/2}], rst=Ltot-cs.Lc;
+      if(rst>=1){parts.push({z0:cs.Lc,z1:Ltot,r:Dmaj/2});off={type:'collar',d1:cs.dc,l1:cs.Lc,D2:Dmaj,l2:rst,parts}}
+      else off={type:'rod',D:cs.dc,L:cs.Lc,parts};
+      coreRings=cs.rings;
     }
     if(Dmaj-I.od>0.01) rings.push({Do:Dmaj,Di:I.od,L:used,z0:0,z1:used});
+    rings.push(...coreRings);
   }
-  rings.forEach(g=>g.kg=cylKg(g.Do,g.L,I.rho)-cylKg(I.od,g.L,I.rho));
+  rings.forEach(g=>g.kg=cylKg(g.Do,g.L,I.rho)-cylKg(g.Di,g.L,I.rho));
   const ringX=ringAgg(rings,I.od); if(ringX) ringX.kg=rings.reduce((t,g)=>t+g.kg,0);
   if(off){
     off.kg=off.parts.reduce((s,p)=>s+cylKg(2*p.r,p.z1-p.z0,I.rho),0);
@@ -1472,7 +1498,7 @@ function rRender(){
     <details style="margin:6px 0 0"><summary>Rules used</summary>${depRulesHtml('r')}</details>
     ${off||r.ringX?`<div class="tablewrap"><table>
       <thead><tr><th>Block</th><th>Dimensions (${LUl()})</th><th class="r">Weight</th><th>Rule applied</th><th class="r">Depreciation</th><th class="r">${DVH()}</th></tr></thead>
-      <tbody>${offItems.map((it,i)=>{const o=it.o,ok=oOk(o);return `<tr><td><b style="color:var(--off${it.c})">Offall ${i+1}${it.m>1?' ×'+it.m:''}</b></td><td class="num">${o.type==='collar'?`ø${Lc(o.d1,1)} × ${Lc(o.l1,1)} + ø${Lc(o.D2,1)} × ${Lc(o.l2,1)}${o.core?` + core ø${Lc(o.core.d,1)} × ${Lc(o.core.l,1)}`:''}`:`ø${Lc(o.D,1)} × ${Lc(o.L,1)}`}</td><td class="r num">${Wu(o.kg*it.m,1)}</td><td class="note">${o.m?o.m.info:'awaiting rules'}</td><td class="r num">${ok?pct(o.dev):'—'}</td><td class="r num">${ok?DV(o.dev*o.kg*it.m,'RD'):'—'}</td></tr>`}).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RD')}</td></tr>`:''}</tbody>
+      <tbody>${offItems.map((it,i)=>{const o=it.o,ok=oOk(o);return `<tr><td><b style="color:var(--off${it.c})">Offall ${i+1}${it.m>1?' ×'+it.m:''}</b></td><td class="num">${o.type==='collar'?`ø${Lc(o.d1,1)} × ${Lc(o.l1,1)} + ø${Lc(o.D2,1)} × ${Lc(o.l2,1)}${o.core?` + core ø${Lc(o.core.d,1)} × ${Lc(o.core.l,1)}`:''}`:`ø${Lc(o.D,1)} × ${Lc(o.L,1)}`}</td><td class="r num">${Wu(o.kg*it.m,1)}</td><td class="note">${o.m?o.m.info:'awaiting rules'}</td><td class="r num">${ok?pct(o.dev):'—'}</td><td class="r num">${ok?DV(o.dev*o.kg*it.m,'RD'):'—'}</td></tr>`}).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RD')}</td></tr>`:''}</tbody>
       <tfoot><tr><td>Total</td><td></td><td></td><td>${DEV$?'Total amount devalued':'Weighted depreciated weight'}</td><td></td><td class="r num">${DV(loss,'RD')}</td></tr></tfoot>
     </table></div>`:'<div class="body note">No Offall to depreciate.</div>'}
   </section>
@@ -1525,12 +1551,13 @@ const qstate={mat:0,price:'',view:{yaw:-0.55,pitch:0.38}};
 function qRead(){
   const g=gv;
   return {collar:$('qCollar').checked,core:$('qCore').checked,mode:document.querySelector('input[name=qmode]:checked').value,D:g('qD'),L:g('qL'),d1:g('qD1'),l1:g('qL1'),D2:g('qD2'),l2:g('qL2'),rho:g('qDens'),
-    od:g('qdOD'),id:g('qdID'),len:g('qdL'),Q:Math.round(g('qQty')),aI:g('qaID')||0,aL:g('qaL')||0};
+    od:g('qdOD'),id:g('qdID'),len:g('qdL'),Q:Math.round(g('qQty')),aI:g('qaID')||0,aL:g('qaL')||0,cOD:g('qcOD'),cL:g('qcL')};
 }
 const ringKg=(Do,Di,l,rho)=>cylKg(Do,l,rho)-cylKg(Di,l,rho);
 function qSidebar(){
   const I=qRead(), tube=I.mode==='tube';
-  $('qdIDf').hidden=!tube; $('qaIDf').hidden=!tube; $('qCoreL').hidden=!tube;
+  $('qdIDf').hidden=!tube; $('qaIDf').hidden=!tube; $('qCoreL').hidden=!tube; $('qcODf').hidden=!tube; $('qcLf').hidden=!tube;
+  if(tube){const dm=I.id-I.aI,Lp=I.len+I.aL,auto=(id,v)=>{$(id).placeholder=v>0?'auto · '+Lc(v,1):'auto'};auto('qcOD',dm);auto('qcL',I.Q>0&&Lp>0?I.Q*Lp:0)}
   $('qPlain').hidden=I.collar; $('qCollarF').hidden=!I.collar;
   const nomKg=I.collar?(I.d1>0&&I.l1>0&&I.D2>0&&I.l2>0&&I.rho>0?cylKg(I.d1,I.l1,I.rho)+cylKg(I.D2,I.l2,I.rho):null):(I.D>0&&I.L>0&&I.rho>0?cylKg(I.D,I.L,I.rho):null);
   $('qnomw').innerHTML=nomKg==null?'':(I.collar?`<dt>Total L</dt><dd>${Lu(I.l1+I.l2,1)}</dd>`:'')+`<dt>Total weight</dt><dd><b>${Wu(nomKg,1)}</b></dd>`;
@@ -1553,6 +1580,7 @@ function qAgg(list,I){
 function qSolve(){
   const I=qRead(), r=qSolveOne(I);
   if(!r.error){r.agg=qAgg([{n:1,r}],I);return r}
+  if(r.fatal) return r;
   if([I.rho,I.od,I.len,I.Q].some(x=>!(x>0))||!(I.Q>1)) return r;
   const one=qSolveOne({...I,Q:1}); if(one.error) return r;
   let mx=1; while(mx<I.Q&&mx<5000&&!qSolveOne({...I,Q:mx+1}).error) mx++;
@@ -1592,18 +1620,22 @@ function qSolveOne(I){
     }
     const rest=Lmaj-used, ok=rest>=1;
     dems=[{z0:0,z1:used,n:I.Q}];
-    if(tube&&I.core){
-      offs.push({type:'core',D:dm,L:used,parts:[{z0:0,z1:used,r:dm/2}]});
-      if(ok) offs.push({type:'round',D:I.D,L:rest,parts:[{z0:used,z1:I.L,r:I.D/2}]});
-    }else if(tube){
-      const core={z0:0,z1:used,r:dm/2};
-      if(ok) offs.push({type:'collar',d1:dm,l1:used,D2:I.D,l2:rest,parts:[core,{z0:used,z1:I.L,r:I.D/2}]});
-      else offs.push({type:'core',D:dm,L:used,parts:[core]});
+    let coreRings=[];
+    if(tube){
+      const cs=coreSpec(I,dm,used,Ltot,Dmaj); if(cs.error) return {error:cs.error,fatal:true};
+      const rst=Ltot-cs.Lc, okc=rst>=1, core={z0:0,z1:cs.Lc,r:cs.dc/2}, rp={z0:cs.Lc,z1:I.L,r:I.D/2};
+      if(I.core){
+        offs.push({type:'core',D:cs.dc,L:cs.Lc,parts:[core]});
+        if(okc) offs.push({type:'round',D:I.D,L:rst,parts:[rp]});
+      }else if(okc) offs.push({type:'collar',d1:cs.dc,l1:cs.Lc,D2:I.D,l2:rst,parts:[core,rp]});
+      else offs.push({type:'core',D:cs.dc,L:cs.Lc,parts:[core]});
+      coreRings=cs.rings;
     }else if(ok) offs.push({type:'round',D:I.D,L:rest,parts:[{z0:used,z1:I.L,r:I.D/2}]});
     if(Dmaj-I.od>0.01) rings.push({Do:Dmaj,Di:I.od,L:used,z0:0,z1:used});
+    rings.push(...coreRings);
   }
   offs.forEach(o=>{if(o.type==='rod')o.type='round'});
-  rings.forEach(g=>g.kg=cylKg(g.Do,g.L,I.rho)-cylKg(I.od,g.L,I.rho));
+  rings.forEach(g=>g.kg=cylKg(g.Do,g.L,I.rho)-cylKg(g.Di,g.L,I.rho));
   const ringX=ringAgg(rings,I.od); if(ringX) ringX.kg=rings.reduce((t,g)=>t+g.kg,0);
   offs.forEach(o=>{
     o.kg=o.parts.reduce((s,p)=>s+(p.ri?ringKg(2*p.r,2*p.ri,p.z1-p.z0,I.rho):cylKg(2*p.r,p.z1-p.z0,I.rho)),0);
@@ -1663,7 +1695,7 @@ function qRender(){
     <details style="margin:6px 0 0"><summary>PRD-N rules (OD &lt; ${ROUND_MIN_OD}")</summary>${depRulesHtml('r')}</details>
     ${offs.length||r.ringX?`<div class="tablewrap"><table>
       <thead><tr><th>Offall</th><th>Dimensions (${LUl()})</th><th class="r">Weight</th><th>Rule applied</th><th class="r">Depreciation</th><th class="r">${DVH()}</th></tr></thead>
-      <tbody>${fItems.map(fi=>fi.offs.map((o,i)=>`<tr><td><b style="color:var(--off${i+1})">${multi?'Feedstock '+fi.f+(fi.m>1?' ×'+fi.m:'')+' · ':''}Offall ${i+1}</b></td><td class="num">${dimsOf(o)}</td><td class="r num">${Wu(o.kg*fi.m,1)}</td><td class="note">${o.m?o.m.info:''}</td><td class="r num">${o.m&&!o.m.na?pct(o.dev):'—'}</td><td class="r num">${o.m&&!o.m.na?DV(o.dev*o.kg*fi.m,'RN'):'—'}</td></tr>`).join('')).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess OD stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RN')}</td></tr>`:''}</tbody>
+      <tbody>${fItems.map(fi=>fi.offs.map((o,i)=>`<tr><td><b style="color:var(--off${i+1})">${multi?'Feedstock '+fi.f+(fi.m>1?' ×'+fi.m:'')+' · ':''}Offall ${i+1}</b></td><td class="num">${dimsOf(o)}</td><td class="r num">${Wu(o.kg*fi.m,1)}</td><td class="note">${o.m?o.m.info:''}</td><td class="r num">${o.m&&!o.m.na?pct(o.dev):'—'}</td><td class="r num">${o.m&&!o.m.na?DV(o.dev*o.kg*fi.m,'RN'):'—'}</td></tr>`).join('')).join('')}${r.ringX?`<tr><td><b style="color:var(--demand2)">Excess stock</b></td><td class="num">${ringTxt(r.ringX)}</td><td class="r num">${Wu(ringKgX,1)}</td><td class="note">100% machined away${multi?' · all '+A.N+' pcs':''}</td><td class="r num">${pct(1)}</td><td class="r num">${DV(ringKgX,'RN')}</td></tr>`:''}</tbody>
       <tfoot><tr><td>Total</td><td></td><td></td><td>${DEV$?'Total amount devalued':'Weighted depreciated weight'}</td><td></td><td class="r num">${DV(loss,'RN')}</td></tr></tfoot>
     </table></div>`:''}
   </section>
