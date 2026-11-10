@@ -548,6 +548,8 @@ function stockWarn(id,m){
   const e=$(id); if(!e)return; const bad=noStock(m);
   e.hidden=!bad; e.textContent=bad?'Not in stock: "'+m.name+'" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.':'';
 }
+/* Machining steps offered in the Machine cost drop list (Parma work centres, without the "Parma-" prefix). A step saved earlier under another name stays selectable. */
+const MACH_STEPS=['FRIGGI','SAW','WELLS','MANUAL','HAWKER','SM LATHE','MED LATHE','LG LATHE','CORING','SM MILL','LG MILL','HR MILL','SANDER','AUTOCLAVE','BAKING','GLUE & BAKING'];
 const usd=n=>'$ '+nf(PP(n),2)+'/'+MUl();
 const AX=['W','H','L'];
 const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
@@ -1810,7 +1812,7 @@ function mchHTML(k,title){
 }
 function mchRows(root,k){
   const m=mchSt(k), tb=root.querySelector('table.steps tbody');
-  tb.innerHTML=m.steps.map((r,i)=>`<tr data-i="${i}"><td><select data-f="s"><option value="">Select…</option>${['Saw','Small mill','Large Mill','Small Lathe','Large Lathe'].map(x=>`<option ${r.s===x?'selected':''}>${x}</option>`).join('')}</select></td>
+  tb.innerHTML=m.steps.map((r,i)=>`<tr data-i="${i}"><td><select data-f="s"><option value="">Select…</option>${MACH_STEPS.concat(r.s&&!MACH_STEPS.includes(r.s)?[r.s]:[]).map(x=>`<option ${r.s===x?'selected':''}>${x.replace(/&/g,'&amp;')}</option>`).join('')}</select></td>
     <td><input data-f="su" type="number" min="0" step="any" value="${r.su}" class="r"></td><td><input data-f="t" type="number" min="0" step="any" value="${r.t}" class="r"></td>
     <td class="act">${m.steps.length>1?'<button type="button" class="del" title="Remove this step" aria-label="Remove step">×</button> ':''}<button type="button" class="add" title="Add another machining step" aria-label="Add step" ${i===m.steps.length-1&&mchDone(r)&&m.steps.length<5?'':'hidden'}>+</button></td></tr>`).join('');
 }
