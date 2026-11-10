@@ -544,6 +544,7 @@ const p0Of=(tbl,x)=>{let v=tbl[0][1];tbl.forEach(r=>{if(r6(x)>=r[0])v=r[1]});ret
 const retention=(x,a,b,rA,rB,rMin)=>r6(x)>=a?{R:rA,z:'A'}:r6(x)>=b?{R:rB,z:'B'}:{R:rMin+(rB-rMin)*x/b,z:'C'};
 /* Stock quantity ("Qty (EA)" of the price list, field q): blank / 0 = the product is not in stock. Items without q (older data) give no warning. */
 const noStock=m=>!!m&&typeof m.q==='number'&&!(m.q>0);
+const stockMsg=m=>noStock(m)?`<div class="sample" role="alert">Not in stock: "${m.name}" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.</div>`:'';
 function stockWarn(id,m){
   const e=$(id); if(!e)return; const bad=noStock(m);
   e.hidden=!bad; e.textContent=bad?'Not in stock: "'+m.name+'" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.':'';
@@ -1081,7 +1082,7 @@ function render(){
         ${PRICE_SAMPLE?'<div class="sample">Price List Trading not loaded yet. The prices below are examples.</div>':''}
         <div class="field"><label for="mat">Material · grade and size</label>
           <select id="mat">${[...new Set(PRICES.map(p=>p.grp))].map(g=>`<optgroup label="${g}">${PRICES.map((p,i)=>p.grp===g?`<option value="${i}" ${i===state.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`:'').join('')}</optgroup>`).join('')}</select></div>
-        ${matLow('BL')}${matCard('BL')}${xcHTML('blocks')}
+        ${stockMsg(mat)}${matLow('BL')}${matCard('BL')}${xcHTML('blocks')}
         <dl class="dl num">
           ${cd.map(d=>`<dt>${r.mix?'Pieces (both groups)':dn(d.id)} · ${Wu(d.kg,2)} × ${d.Q} pcs</dt><dd>${Wu(d.w,2)} <span class="pctnote" title="Demand weight ÷ total calculation weight">(${nf(calcKg?d.w/calcKg*100:0,1)}%)</span></dd>`).join('')}
           <dt>+ Weighted depreciated weight</dt><dd>${Wu(lossKg,2)} <span class="pctnote" title="Depreciated weight ÷ total calculation weight">(${nf(calcKg?lossKg/calcKg*100:0,1)}%)</span></dd>
@@ -1488,7 +1489,7 @@ function rRender(){
         ${omSt('rods').on?omHTML('rods',['']):`
         <div class="field"><label for="rmat">Material · grade and size</label>
           <select id="rmat">${RODPRICES.map((p,i)=>`<option value="${i}" ${i===rstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>
-        ${matLow('RD')}${matCard('RD')}${xcHTML('rods')}
+        ${stockMsg(mat)}${matLow('RD')}${matCard('RD')}${xcHTML('rods')}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${off&&!devOk&&!ringKgX?'— <span class="pctnote">(no table row)</span>':Wu(loss,2)+' '+pctn(loss)+(off&&!devOk?' <span class="pctnote">(excess OD stock only; Offall has no table row)</span>':'')}</dd>
@@ -1677,7 +1678,7 @@ function qRender(){
     <div class="cost">
       <div class="in">
         ${omSt('rounds').on?omHTML('rounds',['']):`
-        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>${matLow('RN')}${matCard('RN')}${xcHTML('rounds')}`
+        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>${stockMsg(ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)])}${matLow('RN')}${matCard('RN')}${xcHTML('rounds')}`
         :`<div class="field"><label for="qprice">Cost per kg · Price $/kg</label><div class="inp"><input id="qprice" type="number" min="0" step="any" value="${qstate.price}" placeholder="awaiting price list"><span>$/kg</span></div></div>`}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
