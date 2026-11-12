@@ -60,6 +60,7 @@ final class PafValidator
             }
             $clean[] = [
                 'desc' => self::str($p['desc'] ?? '', 'Part description', 0, 200),
+                'grade' => self::str($p['grade'] ?? '', 'Requested Grade', 0, 60),
                 'no' => self::str($p['no'] ?? '', 'Part #', 0, 60),
                 'snap' => $snap,
             ];
