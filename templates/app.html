@@ -551,7 +551,7 @@ const noStock=m=>!!m&&typeof m.q==='number'&&!(m.q>0);
 const stockMsg=m=>noStock(m)?`<div class="sample" role="alert">Not in stock: "${m.name}" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.</div>`:'';
 /* Machining steps offered in the Machine cost drop list (Parma work centres, without the "Parma-" prefix). A step saved earlier under another name stays selectable. */
 const MACH_STEPS=['FRIGGI','SAW','WELLS','MANUAL','HAWKER','SM LATHE','MED LATHE','LG LATHE','CORING','SM MILL','LG MILL','HR MILL','SANDER','AUTOCLAVE','BAKING','GLUE & BAKING'];
-const PACK_PAD=100;   // packaging: mm added to every dimension of the piece (foam around it)
+const PACK_PAD=25.4, CRATE_ADJ=100;   // packaging: mm added to every dimension of the piece (1" of foam) / to every dimension of the crate (listed sizes + 100 mm)
 const usd=n=>'$ '+nf(PP(n),2)+'/'+MUl();
 const AX=['W','H','L'];
 const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
@@ -1851,7 +1851,7 @@ function mchRows(root,k){
 }
 function mchTotAt(k,n){const m=mchSt(k);return omOn(k)?0:m.out?mcOp(k):m.steps.reduce((t,r)=>t+mchStep(parseFloat(m.rate)||0,r,n),0)}
 function mchStep(rate,r,n){return rate/60*((parseFloat(r.su)||0)/n+(parseFloat(r.t)||0))}
-/* Packaging: crate types (inner size in mm, width × length × height, free fill-in quantity of each). Cost per crate stays as listed. Types III and IV can also be a round crate (diameter × height). */
+/* Packaging: crate types (size in mm, width × length × height; every dimension gets +CRATE_ADJ when fitting pieces, free fill-in quantity of each). Cost per crate stays as listed. Types III and IV can also be a round crate (diameter × height). */
 function PACKS(){return [{n:'Packaging I',c:100,box:[400,300,300]},{n:'Packaging II',c:200,box:[600,400,500]},{n:'Packaging III',c:350,box:[800,1000,500],cyl:[800,500]},{n:'Packaging IV',c:500,box:[1200,1800,600],cyl:[1200,800]}]}
 /* Piece dimensions (mm) of the quoted part for a calculator key: b / b0 / b1 (blocks), r (rods and tubes), q (rounds and tubes). */
 function packDims(k){
@@ -1863,9 +1863,9 @@ function packDims(k){
 /* Most pieces of a×b×c (mm) that go in a crate: any orientation, grid packing; round crate: the layer is counted cell by cell inside the circle. */
 function packFit(d,pk){
   let best=0;
-  for(const p of PERMS) best=Math.max(best,pk.box.reduce((n,b,i)=>n*Math.floor((b+1e-6)/d[p[i]]),1));
+  for(const p of PERMS) best=Math.max(best,pk.box.reduce((n,b,i)=>n*Math.floor((b+CRATE_ADJ+1e-6)/d[p[i]]),1));
   if(pk.cyl){
-    const R=pk.cyl[0]/2,H=pk.cyl[1];
+    const R=(pk.cyl[0]+CRATE_ADJ)/2,H=pk.cyl[1]+CRATE_ADJ;
     for(const [a,b,c] of [[0,1,2],[0,2,1],[1,2,0]]){
       const w=d[a],h=d[b],layers=Math.floor((H+1e-6)/d[c]); if(!layers||w>2*R||h>2*R)continue;
       let per=0;
