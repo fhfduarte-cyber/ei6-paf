@@ -1888,7 +1888,7 @@ function packSug(k){
     if(!d0)return '';
     const per=packFit(d0.map(x=>x+PACK_PAD),pk);
     if(!per)return 'Special packaging sizing';
-    return q>0?`suggested ${Math.ceil(q/per)} · ${per} pc${per>1?'s':''}/crate`:`${per} pc${per>1?'s':''}/crate`;
+    const nc=Math.ceil(q/per); return q>0?`Suggested total: ${nc} crate${nc>1?'s':''} (${per} pc${per>1?'s':''}/crate)`:`${per} pc${per>1?'s':''}/crate · enter the Quoted Quantity for the total`;
   });
 }
 function qtCalc(k){
