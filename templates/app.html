@@ -188,7 +188,7 @@ body.no-dl .rpt-btn{display:none}
 .mfin .qt .r>label{letter-spacing:.06em;text-transform:uppercase;opacity:.9;flex:0 0 138px;white-space:nowrap}
 .mfin .qt input,.mfin .qt select{font:500 13px var(--font-num);padding:5px 7px;border-radius:var(--radius);border:1px solid transparent;background:var(--brand-ink);color:var(--brand);width:128px;text-align:right;box-sizing:border-box}
 .mfin .qt select{width:128px;text-align:left;box-sizing:border-box}
-.mfin .qt .pkr{flex-wrap:wrap}.mfin .qt .pkr .ps{flex-basis:100%;padding-left:146px;white-space:normal}.mfin .qt .pkr .pd{flex-basis:100%;padding-left:146px;margin-top:-2px}.mfin .qt .d:empty{display:none}
+.mfin .qt .pkq{margin-left:22px;flex-wrap:wrap;row-gap:2px}.mfin .qt .pkq>label{flex:0 0 116px}.mfin .qt .pkq .ps{flex-basis:100%;padding-left:124px;white-space:normal}.mfin .qt .pkd{margin-left:22px}.mfin .qt .pkd .pd{padding-left:124px}.mfin .qt .d:empty{display:none}
 .mfin .qt input.pn{width:56px}
 .mfin .qt .d{font-size:11px;opacity:.8;text-align:left;white-space:nowrap}
 .mfin .qt .tot{border-top:1px solid color-mix(in srgb,var(--brand-ink) 35%,transparent);padding-top:8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -1899,10 +1899,12 @@ function qtCalc(k){
   const mach=ok?mchTotAt(k,q):NaN, cost=P.length?P[0].c+mach:NaN;
   return {q,qp,pk,pp,fr,fp,tot,ok,label:fr>0?'Delivered':'EXW Parma-OH',im:ok&&qp>0&&isFinite(cost)?(1-cost/qp)*100:NaN,fm:isFinite(tot)&&tot>0&&isFinite(cost)?(1-(cost+pp+fp)/tot)*100:NaN};
 }
+/* the closed Packaging box shows only the price of the chosen type (the list shows type and price) */
+function pkLabels(sel,short){[...sel.options].forEach((o,i)=>{if(i===0)return;const p=PACKS()[i-1];o.textContent=short&&o.selected?'$ '+p.c:p.n+' · $ '+p.c})}
 function qtUpd(el,k){
   const c=qtCalc(k), d2=n=>'$ '+nf(n,2), $q=x=>el.querySelector(x);
   const sh=v=>isFinite(c.tot)&&c.tot>0?' · '+nf(v/c.tot*100,1)+'%':'';
-  const sg=packSug(k)[+mchSt(k).pk]; $q('.ps').textContent=mchSt(k).pk===''?'':(sg||'');
+  const pkSel=mchSt(k).pk, sg=packSug(k)[+pkSel]; $q('.ps').textContent=pkSel===''?'':(sg||''); $q('.pql').textContent=pkSel===''?'Qty':'Qty · '+PACKS()[+pkSel].n.replace('Packaging ','Pack. ');
   $q('.pd').textContent=c.ok&&c.pk?d2(c.pp)+'/pc'+sh(c.pp):''; 
   $q('.im').textContent=isFinite(c.im)?' · margin '+nf(c.im,1)+'%':'';
   $q('.fm').textContent=isFinite(c.fm)?nf(c.fm,1)+'%':'—'; $q('.tl').textContent=c.label; $q('.tv').textContent=isFinite(c.tot)?d2(c.tot):'—';
@@ -1918,9 +1920,13 @@ function mchFin(k){
     const g=ok?mg+d:NaN, bad=!(g<100);
     return `<tr class="${d===0?'base':''}"><td>${isFinite(g)?pc(g):'—'}${d?` <small>(${d>0?'+':'−'}${Math.abs(d)})</small>`:''}</td>${qs.map((n,i)=>{const v=(p.c+mach[i])/(1-g/100);return `<td>${!bad&&(n||fixed)&&isFinite(v)?d2(v):'—'}</td>`}).join('')}</tr>`}).join('')}</tbody></table></div>`;
   const keep=document.activeElement&&document.activeElement.id==='mg-'+k;
-  if(!el.querySelector('.mg')){el.innerHTML=`<span class="l">Final price${el.dataset.t?' · '+el.dataset.t:''}</span><div class="mg"><label for="mg-${k}">Margin</label><input id="mg-${k}" type="number" step="any" max="99.9" value="${m.mg}"><span>%</span></div><div class="mgt"></div><div class="qt"><div class="r"><label for="qq-${k}">Quoted Quantity</label><input id="qq-${k}" data-f="qq" type="number" min="1" step="1" value="${m.qq}" placeholder="pcs"><span class="d">pcs</span></div><div class="r"><label for="qp-${k}">Quoted Price</label><input id="qp-${k}" data-f="qp" type="number" min="0" step="any" value="${m.qp}" placeholder="$ /pc"><span class="d">$ /pc<span class="im"></span></span></div><div class="r pkr"><label>Packaging</label><select data-f="pk" aria-label="Packaging type"><option value="">None</option>${PACKS().map((p,i)=>`<option value="${i}" ${String(m.pk)===String(i)?'selected':''}>${p.n} · $ ${p.c}</option>`).join('')}</select><span class="d qy">Qty:</span><input class="pn" data-f="pn" type="number" min="1" step="1" value="${m.pn}" aria-label="Number of crates" title="Number of crates"><span class="d ps"></span><span class="d pd"></span></div><div class="tot"><span class="t">Price per piece · <span class="tl">EXW Parma-OH</span></span><b class="tv">—</b></div><div class="r fmr"><label>Final margin</label><b class="fm num">—</b></div></div><span class="s">Price = (Material piece cost + Machining total per pc) ÷ (1 − Margin). Rows: margin −10, −5, defined, +5, +10 points.</span>`;
+  if(!el.querySelector('.mg')){el.innerHTML=`<span class="l">Final price${el.dataset.t?' · '+el.dataset.t:''}</span><div class="mg"><label for="mg-${k}">Margin</label><input id="mg-${k}" type="number" step="any" max="99.9" value="${m.mg}"><span>%</span></div><div class="mgt"></div><div class="qt"><div class="r"><label for="qq-${k}">Quoted Quantity</label><input id="qq-${k}" data-f="qq" type="number" min="1" step="1" value="${m.qq}" placeholder="pcs"><span class="d">pcs</span></div><div class="r"><label for="qp-${k}">Quoted Price</label><input id="qp-${k}" data-f="qp" type="number" min="0" step="any" value="${m.qp}" placeholder="$ /pc"><span class="d">$ /pc<span class="im"></span></span></div><div class="r pkr"><label for="pk-${k}">Packaging</label><select id="pk-${k}" data-f="pk" aria-label="Packaging type"><option value="">None</option>${PACKS().map((p,i)=>`<option value="${i}" ${String(m.pk)===String(i)?'selected':''}>${p.n} · $ ${p.c}</option>`).join('')}</select></div><div class="r pkq"><label class="pql" for="pn-${k}">Qty</label><input id="pn-${k}" class="pn" data-f="pn" type="number" min="1" step="1" value="${m.pn}" aria-label="Number of crates" title="Number of crates of the selected packaging"><span class="d ps"></span></div><div class="r pkd"><span class="d pd"></span></div><div class="tot"><span class="t">Price per piece · <span class="tl">EXW Parma-OH</span></span><b class="tv">—</b></div><div class="r fmr"><label>Final margin</label><b class="fm num">—</b></div></div><span class="s">Price = (Material piece cost + Machining total per pc) ÷ (1 − Margin). Rows: margin −10, −5, defined, +5, +10 points.</span>`;
     el.addEventListener('input',e=>{const f=e.target.dataset.f; if(f==='mg'||!f){if(e.target.id==='mg-'+k){m.mg=e.target.value;mchFin(k)}return} m[f]=e.target.value; if(f==='qq'&&(omOn(k)||m.out)){mchFin(k);return} qtUpd(el,k)});
-    el.addEventListener('change',e=>{if(e.target.dataset.f==='pk'){m.pk=e.target.value;qtUpd(el,k)}})}
+    el.addEventListener('change',e=>{if(e.target.dataset.f==='pk'){m.pk=e.target.value;pkLabels(e.target,true);qtUpd(el,k)}});
+    el.addEventListener('mousedown',e=>{if(e.target.dataset&&e.target.dataset.f==='pk')pkLabels(e.target,false)});
+    el.addEventListener('keydown',e=>{if(e.target.dataset&&e.target.dataset.f==='pk')pkLabels(e.target,false)});
+    el.addEventListener('focusout',e=>{if(e.target.dataset&&e.target.dataset.f==='pk')pkLabels(e.target,true)});
+    pkLabels(el.querySelector('select[data-f=pk]'),true)}
   el.querySelector('.mgt').innerHTML=P.length?P.map(tab).join(''):'';
   qtUpd(el,k);
 }
