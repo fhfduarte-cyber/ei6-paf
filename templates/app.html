@@ -189,7 +189,11 @@ body.no-dl .rpt-btn{display:none}
 .mfin .qt input,.mfin .qt select{font:500 13px var(--font-num);padding:5px 7px;border-radius:var(--radius);border:1px solid transparent;background:var(--brand-ink);color:var(--brand);width:128px;text-align:right;box-sizing:border-box}
 .mfin .qt select{width:128px;text-align:left;box-sizing:border-box}
 .mfin .qt .pkq{margin-left:22px;flex-wrap:wrap;row-gap:2px}.mfin .qt .pkq>label{flex:0 0 116px}.mfin .qt .pkq .ps{flex-basis:100%;padding-left:124px;white-space:normal}.mfin .qt .pkd{margin-left:22px}.mfin .qt .pkd .pd{padding-left:124px}.mfin .qt .d:empty{display:none}
-.mfin .qt input.pn{width:56px}
+.mfin .qt .pkr .pkg{margin-left:8px;font:500 11px var(--font-ui);padding:3px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface);color:var(--brand);cursor:pointer;white-space:nowrap}.mfin .qt .pkr .pkg:hover{border-color:var(--brand)}.mfin .qt .pos{margin-left:22px}.mfin .qt .pos>label{flex:0 0 116px}.mfin .qt .pos[hidden]{display:none}
+.pgm{position:fixed;inset:0;background:rgba(10,18,30,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}.pgb{background:var(--surface);color:var(--fg);border:1px solid var(--line-strong);border-radius:10px;max-width:980px;width:100%;max-height:92vh;overflow:auto;padding:0 20px 18px}.pgb header{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--surface);padding:14px 0 10px;border-bottom:1px solid var(--line)}.pgb h2{margin:0;font-size:17px}.pgx{border:0;background:none;color:var(--fg-muted);font-size:24px;line-height:1;cursor:pointer}
+.pgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px;margin:14px 0}.pgc{border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--surface-2);font-size:12.5px}.pgc.on{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}.pgc h3{margin:0 0 4px;font-size:15px}.pgc h3 span{font-weight:400;color:var(--fg-muted);font-size:12px}.pgc p{margin:4px 0}.pgc .pgh{color:var(--fg-muted)}.pgc ul,.pgn ul{margin:6px 0 6px 18px;padding:0}.pgc table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}.pgc th,.pgc td{text-align:left;padding:3px 4px;border-bottom:1px solid var(--line)}.pgc td small{display:block;color:var(--fg-muted);font-size:10.5px}
+.pgn{font-size:12.5px}.pgn h3{margin:8px 0 0;font-size:13px}.pgf{color:var(--fg-muted);margin-top:10px}
+.mfin .qt .pkr select,.mfin .qt .pos select{width:auto;flex:1 1 auto;min-width:0;max-width:210px;font-size:12px}.mfin .qt input.pn{width:56px}
 .mfin .qt .d{font-size:11px;opacity:.8;text-align:left;white-space:nowrap}
 .mfin .qt .tot{border-top:1px solid color-mix(in srgb,var(--brand-ink) 35%,transparent);padding-top:8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .mfin .qt .tot .t{font-size:12px;letter-spacing:.08em;text-transform:uppercase}
@@ -552,6 +556,18 @@ const stockMsg=m=>noStock(m)?`<div class="sample" role="alert">Not in stock: "${
 /* Machining steps offered in the Machine cost drop list (Parma work centres, without the "Parma-" prefix). A step saved earlier under another name stays selectable. */
 const MACH_STEPS=['FRIGGI','SAW','WELLS','MANUAL','HAWKER','SM LATHE','MED LATHE','LG LATHE','CORING','SM MILL','LG MILL','HR MILL','SANDER','AUTOCLAVE','BAKING','GLUE & BAKING'];
 const PACK_PAD=25.4, CRATE_ADJ=100;   // packaging: mm added to every dimension of the piece (1" of foam) / to every dimension of the crate (listed sizes + 100 mm)
+const PACKS_DATA=[
+ {n:'PL1',t:'Basic protection',lim:50,hand:'Loaded by hand · box truck · direct delivery, no LTL',prof:'Durable product, low damage risk, local or short-distance transport.',
+  mat:['Single-wall corrugated cardboard box','Polystyrene sheets and/or spray EPS foam cushioning','Standard seal with adhesive tape'],cost:'$50/box for labor and materials',opts:[{n:'Box',c:50}]},
+ {n:'PL2',t:'Standard protection',lim:100,hand:'Loaded by hand · box truck · LTL',prof:'Moderately sensitive product, regional transport between nearby cities or states.',
+  mat:['Single-wall corrugated cardboard box','Kraft paper or expandable PE for individual parts','Spray EPS foam cushioning','Corner supports on the box','Standard seal with adhesive tape','Strapped to pallet'],cost:'$100/box for labor and materials',opts:[{n:'Box',c:100}]},
+ {n:'PL3',t:'Intermediate protection',lim:2000,hand:'Loaded with forklift · flatbed truck · LTL',prof:'Product sensitive to impacts and vibration, national road transport.',
+  mat:['Wooden crates (tailor made)','Kraft paper or expandable PE for individual parts','Polystyrene sheets','Product secured and immobilized inside the packaging','Wooden lid is screwed'],cost:'Total cost per crate, by size option',
+  opts:[{n:'Option 1',in:[36,30,24],c:175,note:'smaller than a 48" × 40" pallet'},{n:'Option 2',in:[48,40,40],c:225,note:'fits roughly on a 48" × 40" pallet'},{n:'Option 3',in:[60,54,40],c:275,note:'oversized beyond a 48" × 40" pallet'}]},
+ {n:'PL4',t:'Advanced protection',lim:2000,hand:'Loaded with forklift · flatbed truck · multimodal transport with intermediary warehousing or export',prof:'Highly fragile product, long-haul national or international multimodal transport.',
+  mat:['Intermediate card boxes inside wooden boxes (tailor made)','Kraft paper or expandable PE for individual parts','Polystyrene sheets','Product secured and immobilized inside the packaging','Wooden lid is screwed','Box wrapped with PET straps'],cost:'Total cost per crate, by size option',
+  opts:[{n:'Option 1',in:[36,30,24],c:200,note:'smaller than a 48" × 40" pallet'},{n:'Option 2',in:[48,40,40],c:250,note:'fits roughly on a 48" × 40" pallet'},{n:'Option 3',in:[60,54,40],c:300,note:'oversized beyond a 48" × 40" pallet'}]}];
+const LB_KG=0.45359237;
 const usd=n=>'$ '+nf(PP(n),2)+'/'+MUl();
 const AX=['W','H','L'];
 const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
@@ -1830,7 +1846,7 @@ document.addEventListener('change',e=>{const t=e.target;if(t&&t.dataset&&t.datas
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-omb]');if(!b)return;const box=b.closest('.quotes'),tb=b.closest('tbody'),ref=tb.dataset.st,f=qS(ref),j=+b.closest('tr').dataset.j;
   if(b.dataset.omb==='add'){if(f.r.length<10)f.r.push({v:'',p:'',d:''})}else{f.r.splice(j,1);if(f.s===j)f.s=0;else if(f.s>j)f.s--}
   qFill(box);qAfter(ref)});
-function mchSt(k){const M=(window.__MCH=window.__MCH||{});const m=M[k]||(M[k]={rate:'90',steps:[{s:'',su:'',t:''}],q:[1,10,20,100],mg:'30',qq:'',qp:'',pk:'',pn:'1',fr:'',out:false,oqs:{r:[{v:'',p:'',d:''}],s:0}})
+function mchSt(k){const M=(window.__MCH=window.__MCH||{});const m=M[k]||(M[k]={rate:'90',steps:[{s:'',su:'',t:''}],q:[1,10,20,100],mg:'30',qq:'',qp:'',pk:'',po:'',pn:'1',fr:'',out:false,oqs:{r:[{v:'',p:'',d:''}],s:0}})
   return m;}
 function mchDone(r){return r.s!==''&&r.su!==''&&r.t!==''}
 function mchHTML(k,title){
@@ -1850,61 +1866,74 @@ function mchRows(root,k){
 }
 function mchTotAt(k,n){const m=mchSt(k);return omOn(k)?0:m.out?mcOp(k):m.steps.reduce((t,r)=>t+mchStep(parseFloat(m.rate)||0,r,n),0)}
 function mchStep(rate,r,n){return rate/60*((parseFloat(r.su)||0)/n+(parseFloat(r.t)||0))}
-/* Packaging: crate types (size in mm, width × length × height; every dimension gets +CRATE_ADJ when fitting pieces, free fill-in quantity of each). Cost per crate stays as listed. Types III and IV can also be a round crate (diameter × height). */
-function PACKS(){return [{n:'Packaging I',c:100,box:[400,300,300]},{n:'Packaging II',c:200,box:[600,400,500]},{n:'Packaging III',c:350,box:[800,1000,500],cyl:[800,500]},{n:'Packaging IV',c:500,box:[1200,1800,600],cyl:[1200,800]}]}
-/* Piece dimensions (mm) of the quoted part for a calculator key: b / b0 / b1 (blocks), r (rods and tubes), q (rounds and tubes). */
-function packDims(k){
+/* Packaging levels PL1–PL4 (source: "Parma Packaging Levels" presentation). Weight limit per package in lb; PL3/PL4 crates by size option (L × W × H in inches, cost per crate). PL1/PL2 are standard boxes with no size table: only the weight limit applies. Piece + PACK_PAD in every dimension must fit inside the crate (+CRATE_ADJ mm). */
+function PACKS(){return PACKS_DATA.map(l=>({...l,limKg:l.lim*LB_KG,opts:l.opts.map(o=>({...o,box:o.in?o.in.map(x=>x*IN):null,lab:o.in?o.n.replace('Option ','Opt ')+' · '+o.in.join('×')+' · $'+o.c:'Box · $'+o.c}))}))}
+/* Piece dimensions (mm) and weight (kg) of the quoted part for a calculator key: b / b0 / b1 (blocks), r (rods and tubes), q (rounds and tubes). */
+function packPiece(k){
   try{
-    if(k[0]==='b'){const I=readIn(),P=k==='b1'?I.P2:I.P;return P.every(x=>x>0)?P:null}
-    const I=k==='r'?rRead():qRead(); return I.od>0&&I.len>0?[I.od,I.od,I.len]:null;
+    if(k[0]==='b'){const I=readIn(),P=k==='b1'?I.P2:I.P;return P.every(x=>x>0)?{d:P,kg:I.D>0?P[0]*P[1]*P[2]/1e9*I.D:0}:null}
+    const I=k==='r'?rRead():qRead(); if(!(I.od>0&&I.len>0))return null;
+    const tube=I.mode==='tube'&&I.id>0&&I.id<I.od;
+    return {d:[I.od,I.od,I.len],kg:I.rho>0?(tube?ringKg(I.od,I.id,I.len,I.rho):cylKg(I.od,I.len,I.rho)):0};
   }catch(e){return null}
 }
-/* Most pieces of a×b×c (mm) that go in a crate: any orientation, grid packing; round crate: the layer is counted cell by cell inside the circle. */
-function packFit(d,pk){
-  let best=0;
-  for(const p of PERMS) best=Math.max(best,pk.box.reduce((n,b,i)=>n*Math.floor((b+CRATE_ADJ+1e-6)/d[p[i]]),1));
-  if(pk.cyl){
-    const R=(pk.cyl[0]+CRATE_ADJ)/2,H=pk.cyl[1]+CRATE_ADJ;
-    for(const [a,b,c] of [[0,1,2],[0,2,1],[1,2,0]]){
-      const w=d[a],h=d[b],layers=Math.floor((H+1e-6)/d[c]); if(!layers||w>2*R||h>2*R)continue;
-      let per=0;
-      for(const ox of [0,.5])for(const oy of [0,.5]){
-        const nx=Math.ceil(2*R/w)+1,ny=Math.ceil(2*R/h)+1; let n=0;
-        for(let i=-nx;i<=nx;i++)for(let j=-ny;j<=ny;j++){
-          const x0=(i+ox)*w-w/2,y0=(j+oy)*h-h/2, cx=Math.max(Math.abs(x0),Math.abs(x0+w)), cy=Math.max(Math.abs(y0),Math.abs(y0+h));
-          if(Math.hypot(cx,cy)<=R+1e-6)n++;
-        }
-        per=Math.max(per,n);
-      }
-      best=Math.max(best,per*layers);
-    }
-  }
-  return best;
-}
-/* Suggestion text for each packaging type: crates needed for the Quoted Quantity (piece + PACK_PAD in every dimension). */
-function packSug(k){
-  const d0=packDims(k), q=Math.round(parseFloat(mchSt(k).qq));
-  return PACKS().map(pk=>{
-    if(!d0)return '';
-    const per=packFit(d0.map(x=>x+PACK_PAD),pk);
-    if(!per)return 'Special packaging sizing';
-    const nc=Math.ceil(q/per); return q>0?`Suggested total: ${nc} crate${nc>1?'s':''} (${per} pc${per>1?'s':''}/crate)`:`Enter the Quoted Quantity for the total (${per} pc${per>1?'s':''}/crate)`;
+/* Most pieces of a×b×c (mm) that go in a crate: any orientation, grid packing. */
+function packFit(d,box){let best=0;for(const p of PERMS)best=Math.max(best,box.reduce((n,b,i)=>n*Math.floor((b+CRATE_ADJ+1e-6)/d[p[i]]),1));return best}
+/* Every size option of a level with its pieces per crate (size and weight limit), crates for the Quoted Quantity and total cost; best = cheapest. */
+function packPlan(k,lv){
+  const pc=packPiece(k); if(!pc)return null;
+  const L=PACKS()[lv], q=Math.round(parseFloat(mchSt(k).qq)), d=pc.d.map(x=>x+PACK_PAD);
+  const perW=pc.kg>0?Math.floor(L.limKg/pc.kg+1e-9):Infinity;
+  const opts=L.opts.map((o,i)=>{
+    const perD=o.box?packFit(d,o.box):Infinity, per=Math.min(perD,perW), ok=per>=1&&isFinite(per);
+    const nc=ok&&q>0?Math.ceil(q/per):0;
+    return {i,o,per,ok,nc,cost:ok?(q>0?nc*o.c:o.c/per):Infinity,sizeFail:perD<1,wFail:perD>=1&&perW<1};
   });
+  let best=null; opts.forEach(x=>{if(x.ok&&(!best||x.cost<best.cost-1e-9))best=x});
+  return {L,pc,q,opts,best,wFail:opts.every(x=>x.wFail||x.sizeFail)&&opts.some(x=>x.wFail),perW};
+}
+/* Option in use for a calculator key: the chosen one, else the cheapest that fits (else the first). */
+function packChoice(k){
+  const m=mchSt(k); if(m.pk===''||!PACKS()[+m.pk])return null;
+  const lv=+m.pk, L=PACKS()[lv], pl=packPlan(k,lv);
+  let i=m.po!==''&&L.opts[+m.po]?+m.po:(pl&&pl.best?pl.best.i:0);
+  return {lv,i,L,o:L.opts[i],pl,auto:!(m.po!==''&&L.opts[+m.po])};
+}
+function packXl(c){return c.L.n+(c.o.in?' · '+c.o.n+' ('+c.o.in.join('×')+' in)':' · box')}
+/* Suggestion text for the level selected: option, crates for the Quoted Quantity and pieces per crate. */
+function packSug(k){
+  const m=mchSt(k); if(m.pk==='')return '';
+  const pl=packPlan(k,+m.pk); if(!pl)return '';
+  if(!pl.best)return pl.wFail?`Over the ${pl.L.n} weight limit (${pl.L.lim} lb per ${pl.L.opts.length>1?'crate':'box'}): choose a higher level`:'Special packaging sizing';
+  const b=pl.best, u=pl.L.opts.length>1?'crate':'box', pcs=`${b.per} pc${b.per>1?'s':''}/${u}`;
+  const lead=pl.L.opts.length>1?`${b.o.n} · ${b.o.in.join('×')} in · $ ${b.o.c}/${u}: `:`$ ${b.o.c}/${u}: `;
+  return pl.q>0?`${lead}suggested total ${b.nc} ${u}${b.nc>1?'s':''} (${pcs})`:`${lead}enter the Quoted Quantity for the total (${pcs})`;
+}
+/* Quick packaging guide (modal): levels, handling, materials, sizes and prices. Highlights the level chosen for the calculator that opened it. */
+function packGuide(k){
+  let o=document.getElementById('pkg-modal'); if(o)o.remove();
+  const sel=mchSt(k).pk, esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const card=(l,i)=>`<section class="pgc${String(sel)===String(i)?' on':''}"><h3>${l.n} <span>${esc(l.t)}</span></h3><p class="pgh">${esc(l.hand)}</p><p><b>Profile:</b> ${esc(l.prof)}</p><ul>${l.mat.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="pgw"><b>Weight limit:</b> ${nf(l.lim)} lb (${nf(l.lim*LB_KG,0)} kg) per ${l.opts.length>1?'crate':'box'}</p>`+
+   (l.opts.length>1?`<table><thead><tr><th>Option</th><th>L × W × H (in)</th><th>Cost / crate</th></tr></thead><tbody>${l.opts.map(x=>`<tr><td>${x.n}<small>${esc(x.note)}</small></td><td>${x.in.join(' × ')}<small>${x.in.map(v=>Math.round(v*IN)).join(' × ')} mm</small></td><td><b>$ ${x.c}</b></td></tr>`).join('')}</tbody></table>`:`<p class="pgw"><b>Cost:</b> ${esc(l.cost)}</p>`)+`</section>`;
+  o=document.createElement('div'); o.id='pkg-modal'; o.className='pgm'; o.setAttribute('role','dialog'); o.setAttribute('aria-modal','true'); o.setAttribute('aria-label','Packaging quick guide');
+  o.innerHTML=`<div class="pgb"><header><h2>Packaging quick guide</h2><button type="button" class="pgx" aria-label="Close">×</button></header><div class="pgs">`+PACKS_DATA.map(card).join('')+
+   `</div><section class="pgn"><h3>All packaging</h3><ul><li>Ei6 logo, phone and website on the package</li><li>Fragile labels on all four sides and on top</li><li>Standardized label: quantity, item description, weight and Ei6 PO# (customer PO# optional, QR code)</li></ul><h3>Special requirements</h3><ul><li>Degas units: rotors and shafts for export are vacuum sealed; some have tailor-made card boxes</li><li>Degas SNIF sets (stator + rotor and shaft) for export have tailor-made PE cushioning</li><li>Smaller parts: vacuum-sealed perforated carton</li></ul><p class="pgf">The tool suggests the cheapest size that holds the Quoted Quantity (piece + 1 in per dimension, within the weight limit). PL1 and PL2 have no size table, so only the weight limit is checked.</p></section></div>`;
+  const close=()=>{o.remove();document.removeEventListener('keydown',kd)}, kd=e=>{if(e.key==='Escape')close()};
+  o.addEventListener('click',e=>{if(e.target===o||e.target.closest('.pgx'))close()}); document.addEventListener('keydown',kd);
+  document.body.appendChild(o); o.querySelector('.pgx').focus();
 }
 function qtCalc(k){
   const m=mchSt(k), q=parseFloat(m.qq), qp=parseFloat(m.qp), n=Math.max(1,parseFloat(m.pn)||1), fr=0;
-  const pk=m.pk===''?0:PACKS()[+m.pk].c*n, ok=q>0;
+  const pch=packChoice(k), pk=pch?pch.o.c*n:0, ok=q>0;
   const pp=ok?pk/q:0, fp=ok?fr/q:0, tot=ok&&qp>=0&&isFinite(qp)?qp+pp+fp:NaN;
   const P=(window.__MCHP&&window.__MCHP[k])||[], rate=parseFloat(m.rate)||0;
   const mach=ok?mchTotAt(k,q):NaN, cost=P.length?P[0].c+mach:NaN;
   return {q,qp,pk,pp,fr,fp,tot,ok,label:fr>0?'Delivered':'EXW Parma-OH',im:ok&&qp>0&&isFinite(cost)?(1-cost/qp)*100:NaN,fm:isFinite(tot)&&tot>0&&isFinite(cost)?(1-(cost+pp+fp)/tot)*100:NaN};
 }
-/* the closed Packaging box shows only the price of the chosen type (the list shows type and price) */
-function pkLabels(sel,short){[...sel.options].forEach((o,i)=>{if(i===0)return;const p=PACKS()[i-1];o.textContent=short&&o.selected?'$ '+p.c:p.n+' · $ '+p.c})}
 function qtUpd(el,k){
   const c=qtCalc(k), d2=n=>'$ '+nf(n,2), $q=x=>el.querySelector(x);
   const sh=v=>isFinite(c.tot)&&c.tot>0?' · '+nf(v/c.tot*100,1)+'%':'';
-  const pkSel=mchSt(k).pk, sg=packSug(k)[+pkSel]; $q('.ps').textContent=pkSel===''?'':(sg||''); $q('.pql').textContent=pkSel===''?'Qty':'Qty · '+PACKS()[+pkSel].n.replace('Packaging ','Pack. ');
+  const pkSel=mchSt(k).pk, pch=packChoice(k); $q('.ps').textContent=packSug(k); $q('.pql').textContent=pkSel===''?'Qty':'Qty · '+PACKS()[+pkSel].n; $q('.pos').hidden=!pch||pch.L.opts.length<2; if(pch&&pch.L.opts.length>1){const so=$q('select[data-f=po]'); so.options[0].textContent=pch.auto?'Auto · cheapest ('+pch.o.n+')':'Auto · cheapest fit'; so.value=mchSt(k).po}
   $q('.pd').textContent=c.ok&&c.pk?d2(c.pp)+'/pc'+sh(c.pp):''; 
   $q('.im').textContent=isFinite(c.im)?' · margin '+nf(c.im,1)+'%':'';
   $q('.fm').textContent=isFinite(c.fm)?nf(c.fm,1)+'%':'—'; $q('.tl').textContent=c.label; $q('.tv').textContent=isFinite(c.tot)?d2(c.tot):'—';
@@ -1920,13 +1949,11 @@ function mchFin(k){
     const g=ok?mg+d:NaN, bad=!(g<100);
     return `<tr class="${d===0?'base':''}"><td>${isFinite(g)?pc(g):'—'}${d?` <small>(${d>0?'+':'−'}${Math.abs(d)})</small>`:''}</td>${qs.map((n,i)=>{const v=(p.c+mach[i])/(1-g/100);return `<td>${!bad&&(n||fixed)&&isFinite(v)?d2(v):'—'}</td>`}).join('')}</tr>`}).join('')}</tbody></table></div>`;
   const keep=document.activeElement&&document.activeElement.id==='mg-'+k;
-  if(!el.querySelector('.mg')){el.innerHTML=`<span class="l">Final price${el.dataset.t?' · '+el.dataset.t:''}</span><div class="mg"><label for="mg-${k}">Margin</label><input id="mg-${k}" type="number" step="any" max="99.9" value="${m.mg}"><span>%</span></div><div class="mgt"></div><div class="qt"><div class="r"><label for="qq-${k}">Quoted Quantity</label><input id="qq-${k}" data-f="qq" type="number" min="1" step="1" value="${m.qq}" placeholder="pcs"><span class="d">pcs</span></div><div class="r"><label for="qp-${k}">Quoted Price</label><input id="qp-${k}" data-f="qp" type="number" min="0" step="any" value="${m.qp}" placeholder="$ /pc"><span class="d">$ /pc<span class="im"></span></span></div><div class="r pkr"><label for="pk-${k}">Packaging</label><select id="pk-${k}" data-f="pk" aria-label="Packaging type"><option value="">None</option>${PACKS().map((p,i)=>`<option value="${i}" ${String(m.pk)===String(i)?'selected':''}>${p.n} · $ ${p.c}</option>`).join('')}</select></div><div class="r pkq"><label class="pql" for="pn-${k}">Qty</label><input id="pn-${k}" class="pn" data-f="pn" type="number" min="1" step="1" value="${m.pn}" aria-label="Number of crates" title="Number of crates of the selected packaging"><span class="d ps"></span></div><div class="r pkd"><span class="d pd"></span></div><div class="tot"><span class="t">Price per piece · <span class="tl">EXW Parma-OH</span></span><b class="tv">—</b></div><div class="r fmr"><label>Final margin</label><b class="fm num">—</b></div></div><span class="s">Price = (Material piece cost + Machining total per pc) ÷ (1 − Margin). Rows: margin −10, −5, defined, +5, +10 points.</span>`;
+  if(!el.querySelector('.mg')){el.innerHTML=`<span class="l">Final price${el.dataset.t?' · '+el.dataset.t:''}</span><div class="mg"><label for="mg-${k}">Margin</label><input id="mg-${k}" type="number" step="any" max="99.9" value="${m.mg}"><span>%</span></div><div class="mgt"></div><div class="qt"><div class="r"><label for="qq-${k}">Quoted Quantity</label><input id="qq-${k}" data-f="qq" type="number" min="1" step="1" value="${m.qq}" placeholder="pcs"><span class="d">pcs</span></div><div class="r"><label for="qp-${k}">Quoted Price</label><input id="qp-${k}" data-f="qp" type="number" min="0" step="any" value="${m.qp}" placeholder="$ /pc"><span class="d">$ /pc<span class="im"></span></span></div><div class="r pkr"><label for="pk-${k}">Packaging</label><select id="pk-${k}" data-f="pk" aria-label="Packaging level"><option value="">None</option>${PACKS().map((p,i)=>`<option value="${i}" ${String(m.pk)===String(i)?'selected':''}>${p.n} · ${p.t}</option>`).join('')}</select><button type="button" class="pkg" data-guide title="Quick packaging guide: levels, sizes and prices">Guide</button></div><div class="r pos" hidden><label for="po-${k}">Size</label><select id="po-${k}" data-f="po" aria-label="Crate size option"><option value="">Auto · cheapest fit</option>${PACKS()[Math.max(0,+m.pk)||0].opts.map((o,i)=>`<option value="${i}">${o.lab}</option>`).join('')}</select></div><div class="r pkq"><label class="pql" for="pn-${k}">Qty</label><input id="pn-${k}" class="pn" data-f="pn" type="number" min="1" step="1" value="${m.pn}" aria-label="Number of crates" title="Number of crates of the selected packaging"><span class="d ps"></span></div><div class="r pkd"><span class="d pd"></span></div><div class="tot"><span class="t">Price per piece · <span class="tl">EXW Parma-OH</span></span><b class="tv">—</b></div><div class="r fmr"><label>Final margin</label><b class="fm num">—</b></div></div><span class="s">Price = (Material piece cost + Machining total per pc) ÷ (1 − Margin). Rows: margin −10, −5, defined, +5, +10 points.</span>`;
     el.addEventListener('input',e=>{const f=e.target.dataset.f; if(f==='mg'||!f){if(e.target.id==='mg-'+k){m.mg=e.target.value;mchFin(k)}return} m[f]=e.target.value; if(f==='qq'&&(omOn(k)||m.out)){mchFin(k);return} qtUpd(el,k)});
-    el.addEventListener('change',e=>{if(e.target.dataset.f==='pk'){m.pk=e.target.value;pkLabels(e.target,true);qtUpd(el,k)}});
-    el.addEventListener('mousedown',e=>{if(e.target.dataset&&e.target.dataset.f==='pk')pkLabels(e.target,false)});
-    el.addEventListener('keydown',e=>{if(e.target.dataset&&e.target.dataset.f==='pk')pkLabels(e.target,false)});
-    el.addEventListener('focusout',e=>{if(e.target.dataset&&e.target.dataset.f==='pk')pkLabels(e.target,true)});
-    pkLabels(el.querySelector('select[data-f=pk]'),true)}
+    el.addEventListener('change',e=>{const f=e.target.dataset.f;if(f==='pk'){m.pk=e.target.value;m.po='';const so=el.querySelector('select[data-f=po]');if(m.pk!==''){so.length=1;PACKS()[+m.pk].opts.forEach((o,i)=>so.add(new Option(o.lab,i)))}qtUpd(el,k)}else if(f==='po'){m.po=e.target.value;qtUpd(el,k)}});
+    el.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('[data-guide]'))packGuide(k)});
+    }
   el.querySelector('.mgt').innerHTML=P.length?P.map(tab).join(''):'';
   qtUpd(el,k);
 }
@@ -2333,12 +2360,12 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
   const note=(r,c1,v)=>put(r,c1,X1,v,{color:'FFCDDCF0',sz:9,wrap:false,ind:1});
   const rq=y;blueRow(y,22);lab(y,'QUOTED QUANTITY');inp(y,4,5,M.qq!==''&&parseFloat(M.qq)>0?parseFloat(M.qq):null,'0');note(y,6,'pcs');const QQ=`$D$${rq}`;y++;
   const rp=y;blueRow(y,22);lab(y,'QUOTED PRICE');inp(y,4,5,M.qp!==''&&isFinite(parseFloat(M.qp))?parseFloat(M.qp):null,money);const QP=`$D$${rp}`;y++;
-  const rk=y;blueRow(y,22);lab(y,'PACKAGING');inp(y,4,5,M.pk===''?'None':PACKS()[+M.pk].n,'@');put(y,6,6,'Qty:',{color:XC.ink,sz:9,h:'right'});inp(y,7,7,parseFloat(M.pn)>0?parseFloat(M.pn):1,'0.##');const PK=`$D$${rk}`,PN=`$G$${rk}`;y++;
+  const rk=y;blueRow(y,22);lab(y,'PACKAGING');inp(y,4,5,(()=>{const c=packChoice(mk);return c?packXl(c):'None'})(),'@');put(y,6,6,'Qty:',{color:XC.ink,sz:9,h:'right'});inp(y,7,7,parseFloat(M.pn)>0?parseFloat(M.pn):1,'0.##');const PK=`$D$${rk}`,PN=`$G$${rk}`;y++;
   const FR='0';
   /* packaging options (lookup) */
-  const rowsPk=[['None',0],...PACKS().map(q=>[q.n,q.c])], po=y, rf=po;
+  const rowsPk=[['None',0],...PACKS().flatMap(l=>l.opts.map((o,i)=>[packXl({L:l,o}),o.c]))], po=y, rf=po;
   rowsPk.forEach((q,i)=>{blueRow(y,16);put(y,X0,3,i?'':'Packaging options',{color:'FFCDDCF0',sz:8.5,ind:1,wrap:false,i:true});put(y,4,4,q[0],{color:'FFCDDCF0',sz:8.5,wrap:false});put(y,5,5,q[1],{color:'FFCDDCF0',sz:8.5,h:'right',nf:money});y++});
-  { const sg=M.pk===''?'':packSug(mk)[+M.pk]; if(sg) note(po,6,'Tool suggestion for '+PACKS()[+M.pk].n+': '+sg) }
+  { const sg=packSug(mk); if(sg) note(po,6,'Tool suggestion for '+PACKS()[+M.pk].n+': '+sg) }
   const OPN=`$D$${po}:$D$${po+rowsPk.length-1}`, OPT=`$D$${po}:$E$${po+rowsPk.length-1}`;
   ws.getCell(rk,4).dataValidation={type:'list',allowBlank:false,formulae:[OPN],showErrorMessage:true,errorTitle:'Packaging',error:'Pick one of the listed packaging options.'};
   ws.getCell(rq,4).dataValidation={type:'decimal',operator:'greaterThan',formulae:[0],allowBlank:true,showErrorMessage:true,error:'Enter a quantity above 0.'};
