@@ -392,7 +392,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
   <div class="layout" id="tab-blocks" role="tabpanel" aria-labelledby="tabbtn-blocks">
     <aside class="side">
       <section class="card">
-        <header><h2>Demanded Part(s) I</h2><label class="tg" for="d2on"><input type="checkbox" id="d2on">Combined order</label></header>
+        <header><h2>Demanded Part(s) I</h2><label class="tg" for="d2on" hidden><input type="checkbox" id="d2on">Combined order</label></header>
         <div class="body"><div class="fields">
           <div class="field"><label for="dW">W'</label><div class="inp"><input id="dW" type="number" min="1" step="any" value="250"><span>mm</span></div></div>
           <div class="field"><label for="dH">H'</label><div class="inp"><input id="dH" type="number" min="1" step="any" value="200"><span>mm</span></div></div>
@@ -555,6 +555,7 @@ const noStock=m=>!!m&&typeof m.q==='number'&&!(m.q>0);
 const stockMsg=m=>noStock(m)?`<div class="sample" role="alert">Not in stock: "${m.name}" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.</div>`:'';
 /* Machining steps offered in the Machine cost drop list (Parma work centres, without the "Parma-" prefix). A step saved earlier under another name stays selectable. */
 const MACH_STEPS=['FRIGGI','SAW','WELLS','MANUAL','HAWKER','SM LATHE','MED LATHE','LG LATHE','CORING','SM MILL','LG MILL','HR MILL','SANDER','AUTOCLAVE','BAKING','GLUE & BAKING'];
+const COMBINED_ON=false;   // Combined order (Blocks, Part II): code kept, switched off. Set true and remove `hidden` from the #d2on label to bring it back.
 const PACK_PAD=25.4, CRATE_ADJ=100;   // packaging: mm added to every dimension of the piece (1" of foam) / to every dimension of the crate (listed sizes + 100 mm)
 const PACKS_DATA=[
  {n:'PL1',t:'Basic protection',lim:50,hand:'Loaded by hand · box truck · direct delivery, no LTL',prof:'Durable product, low damage risk, local or short-distance transport.',
@@ -737,7 +738,7 @@ function matchDev(sizeMm){
 function readIn(){
   const g=gv;
   return {N:[g('nW'),g('nH'),g('nL')],D:g('dens'),P:[g('dW'),g('dH'),g('dL')],A:[g('aW')||0,g('aH')||0,g('aL')||0],Q:Math.round(g('qty')),
-    P2:[g('d2W'),g('d2H'),g('d2L')],A2:[g('a2W')||0,g('a2H')||0,g('a2L')||0],Q2:Math.round(g('qty2')),on2:$('d2on').checked};
+    P2:[g('d2W'),g('d2H'),g('d2L')],A2:[g('a2W')||0,g('a2H')||0,g('a2L')||0],Q2:Math.round(g('qty2')),on2:COMBINED_ON&&$('d2on').checked};
 }
 function offalls(N,v,order){
   const [a,b,c]=order, mk=()=>({size:[...N],pos:[0,0,0]});
@@ -1019,7 +1020,7 @@ function oriRows(r){
 const classOf=d=>d<=0?'p-good':d<1?'p-warn':'p-bad';
 const pct=d=>nf(d*100,0)+'%';
 function render(){
-  $('d2body').classList.toggle('muted',!$('d2on').checked);$('d2body').closest('section').hidden=!$('d2on').checked;
+  $('d2body').classList.toggle('muted',!(COMBINED_ON&&$('d2on').checked));$('d2body').closest('section').hidden=!(COMBINED_ON&&$('d2on').checked);
   const main=$('main'); const kgOf=pieceWeight(); const r=solve(); state.res=r;
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('BL',null);return}
   if(state.sel>=r.opts.length)state.sel=0;
