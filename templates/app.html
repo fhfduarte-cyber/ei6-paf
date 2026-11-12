@@ -188,7 +188,7 @@ body.no-dl .rpt-btn{display:none}
 .mfin .qt .r>label{letter-spacing:.06em;text-transform:uppercase;opacity:.9;flex:0 0 138px;white-space:nowrap}
 .mfin .qt input,.mfin .qt select{font:500 13px var(--font-num);padding:5px 7px;border-radius:var(--radius);border:1px solid transparent;background:var(--brand-ink);color:var(--brand);width:128px;text-align:right;box-sizing:border-box}
 .mfin .qt select{width:128px;text-align:left;box-sizing:border-box}
-.mfin .qt .pkr{flex-wrap:wrap}.mfin .qt .pkr .pd{flex-basis:100%;padding-left:146px;margin-top:-2px}.mfin .qt .d:empty{display:none}
+.mfin .qt .pkb{display:flex;flex-direction:column;gap:6px}.mfin .qt .pkh{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.85}.mfin .qt .pkr>label{flex:0 0 150px}.mfin .qt .ps{white-space:normal}.mfin .qt .d:empty{display:none}
 .mfin .qt input.pn{width:56px}
 .mfin .qt .d{font-size:11px;opacity:.8;text-align:left;white-space:nowrap}
 .mfin .qt .tot{border-top:1px solid color-mix(in srgb,var(--brand-ink) 35%,transparent);padding-top:8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -551,6 +551,7 @@ const noStock=m=>!!m&&typeof m.q==='number'&&!(m.q>0);
 const stockMsg=m=>noStock(m)?`<div class="sample" role="alert">Not in stock: "${m.name}" has no pieces available in the price list (Qty empty). Check availability and lead time before quoting.</div>`:'';
 /* Machining steps offered in the Machine cost drop list (Parma work centres, without the "Parma-" prefix). A step saved earlier under another name stays selectable. */
 const MACH_STEPS=['FRIGGI','SAW','WELLS','MANUAL','HAWKER','SM LATHE','MED LATHE','LG LATHE','CORING','SM MILL','LG MILL','HR MILL','SANDER','AUTOCLAVE','BAKING','GLUE & BAKING'];
+const PACK_PAD=100;   // packaging: mm added to every dimension of the piece (foam around it)
 const usd=n=>'$ '+nf(PP(n),2)+'/'+MUl();
 const AX=['W','H','L'];
 const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
@@ -1829,7 +1830,9 @@ document.addEventListener('change',e=>{const t=e.target;if(t&&t.dataset&&t.datas
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-omb]');if(!b)return;const box=b.closest('.quotes'),tb=b.closest('tbody'),ref=tb.dataset.st,f=qS(ref),j=+b.closest('tr').dataset.j;
   if(b.dataset.omb==='add'){if(f.r.length<10)f.r.push({v:'',p:'',d:''})}else{f.r.splice(j,1);if(f.s===j)f.s=0;else if(f.s>j)f.s--}
   qFill(box);qAfter(ref)});
-function mchSt(k){const M=(window.__MCH=window.__MCH||{});return M[k]||(M[k]={rate:'90',steps:[{s:'',su:'',t:''}],q:[1,10,20,100],mg:'30',qq:'',qp:'',pk:'',pn:'1',fr:'',out:false,oqs:{r:[{v:'',p:'',d:''}],s:0}})}
+function mchSt(k){const M=(window.__MCH=window.__MCH||{});const m=M[k]||(M[k]={rate:'90',steps:[{s:'',su:'',t:''}],q:[1,10,20,100],mg:'30',qq:'',qp:'',pk:'',pn:'1',pq:['','','',''],fr:'',out:false,oqs:{r:[{v:'',p:'',d:''}],s:0}})
+  if(!Array.isArray(m.pq)){m.pq=['','','',''];if(m.pk!==''&&m.pk!=null&&PACKS()[+m.pk])m.pq[+m.pk]=String(parseFloat(m.pn)>0?parseFloat(m.pn):1)}   // PAFs saved with the old drop list
+  return m;}
 function mchDone(r){return r.s!==''&&r.su!==''&&r.t!==''}
 function mchHTML(k,title){
   const m=mchSt(k);
@@ -1848,10 +1851,50 @@ function mchRows(root,k){
 }
 function mchTotAt(k,n){const m=mchSt(k);return omOn(k)?0:m.out?mcOp(k):m.steps.reduce((t,r)=>t+mchStep(parseFloat(m.rate)||0,r,n),0)}
 function mchStep(rate,r,n){return rate/60*((parseFloat(r.su)||0)/n+(parseFloat(r.t)||0))}
-function PACKS(){return [['Packaging I',100],['Packaging II',200],['Packaging III',350],['Packaging IV',500]]}
+/* Packaging: crate types (inner size in mm, width × length × height, free fill-in quantity of each). Cost per crate stays as listed. Types III and IV can also be a round crate (diameter × height). */
+function PACKS(){return [{n:'Packaging I',c:100,box:[400,300,300]},{n:'Packaging II',c:200,box:[600,400,500]},{n:'Packaging III',c:350,box:[800,1000,500],cyl:[800,500]},{n:'Packaging IV',c:500,box:[1200,1800,600],cyl:[1200,800]}]}
+/* Piece dimensions (mm) of the quoted part for a calculator key: b / b0 / b1 (blocks), r (rods and tubes), q (rounds and tubes). */
+function packDims(k){
+  try{
+    if(k[0]==='b'){const I=readIn(),P=k==='b1'?I.P2:I.P;return P.every(x=>x>0)?P:null}
+    const I=k==='r'?rRead():qRead(); return I.od>0&&I.len>0?[I.od,I.od,I.len]:null;
+  }catch(e){return null}
+}
+/* Most pieces of a×b×c (mm) that go in a crate: any orientation, grid packing; round crate: the layer is counted cell by cell inside the circle. */
+function packFit(d,pk){
+  let best=0;
+  for(const p of PERMS) best=Math.max(best,pk.box.reduce((n,b,i)=>n*Math.floor((b+1e-6)/d[p[i]]),1));
+  if(pk.cyl){
+    const R=pk.cyl[0]/2,H=pk.cyl[1];
+    for(const [a,b,c] of [[0,1,2],[0,2,1],[1,2,0]]){
+      const w=d[a],h=d[b],layers=Math.floor((H+1e-6)/d[c]); if(!layers||w>2*R||h>2*R)continue;
+      let per=0;
+      for(const ox of [0,.5])for(const oy of [0,.5]){
+        const nx=Math.ceil(2*R/w)+1,ny=Math.ceil(2*R/h)+1; let n=0;
+        for(let i=-nx;i<=nx;i++)for(let j=-ny;j<=ny;j++){
+          const x0=(i+ox)*w-w/2,y0=(j+oy)*h-h/2, cx=Math.max(Math.abs(x0),Math.abs(x0+w)), cy=Math.max(Math.abs(y0),Math.abs(y0+h));
+          if(Math.hypot(cx,cy)<=R+1e-6)n++;
+        }
+        per=Math.max(per,n);
+      }
+      best=Math.max(best,per*layers);
+    }
+  }
+  return best;
+}
+/* Suggestion text for each packaging type: crates needed for the Quoted Quantity (piece + PACK_PAD in every dimension). */
+function packSug(k){
+  const d0=packDims(k), q=Math.round(parseFloat(mchSt(k).qq));
+  return PACKS().map(pk=>{
+    if(!d0)return '';
+    const per=packFit(d0.map(x=>x+PACK_PAD),pk);
+    if(!per)return 'Special packaging sizing';
+    return q>0?`suggested ${Math.ceil(q/per)} · ${per} pc${per>1?'s':''}/crate`:`${per} pc${per>1?'s':''}/crate`;
+  });
+}
 function qtCalc(k){
-  const m=mchSt(k), q=parseFloat(m.qq), qp=parseFloat(m.qp), n=Math.max(1,parseFloat(m.pn)||1), fr=0;
-  const pk=m.pk===''?0:PACKS()[+m.pk][1]*n, ok=q>0;
+  const m=mchSt(k), q=parseFloat(m.qq), qp=parseFloat(m.qp), fr=0;
+  const pk=PACKS().reduce((t,p,i)=>t+p.c*Math.max(0,parseFloat(m.pq[i])||0),0), ok=q>0;
   const pp=ok?pk/q:0, fp=ok?fr/q:0, tot=ok&&qp>=0&&isFinite(qp)?qp+pp+fp:NaN;
   const P=(window.__MCHP&&window.__MCHP[k])||[], rate=parseFloat(m.rate)||0;
   const mach=ok?mchTotAt(k,q):NaN, cost=P.length?P[0].c+mach:NaN;
@@ -1860,6 +1903,7 @@ function qtCalc(k){
 function qtUpd(el,k){
   const c=qtCalc(k), d2=n=>'$ '+nf(n,2), $q=x=>el.querySelector(x);
   const sh=v=>isFinite(c.tot)&&c.tot>0?' · '+nf(v/c.tot*100,1)+'%':'';
+  const sg=packSug(k); el.querySelectorAll('.ps').forEach(e=>{e.textContent=sg[+e.dataset.i]||''});
   $q('.pd').textContent=c.ok&&c.pk?d2(c.pp)+'/pc'+sh(c.pp):''; 
   $q('.im').textContent=isFinite(c.im)?' · margin '+nf(c.im,1)+'%':'';
   $q('.fm').textContent=isFinite(c.fm)?nf(c.fm,1)+'%':'—'; $q('.tl').textContent=c.label; $q('.tv').textContent=isFinite(c.tot)?d2(c.tot):'—';
@@ -1875,9 +1919,9 @@ function mchFin(k){
     const g=ok?mg+d:NaN, bad=!(g<100);
     return `<tr class="${d===0?'base':''}"><td>${isFinite(g)?pc(g):'—'}${d?` <small>(${d>0?'+':'−'}${Math.abs(d)})</small>`:''}</td>${qs.map((n,i)=>{const v=(p.c+mach[i])/(1-g/100);return `<td>${!bad&&(n||fixed)&&isFinite(v)?d2(v):'—'}</td>`}).join('')}</tr>`}).join('')}</tbody></table></div>`;
   const keep=document.activeElement&&document.activeElement.id==='mg-'+k;
-  if(!el.querySelector('.mg')){el.innerHTML=`<span class="l">Final price${el.dataset.t?' · '+el.dataset.t:''}</span><div class="mg"><label for="mg-${k}">Margin</label><input id="mg-${k}" type="number" step="any" max="99.9" value="${m.mg}"><span>%</span></div><div class="mgt"></div><div class="qt"><div class="r"><label for="qq-${k}">Quoted Quantity</label><input id="qq-${k}" data-f="qq" type="number" min="1" step="1" value="${m.qq}" placeholder="pcs"><span class="d">pcs</span></div><div class="r"><label for="qp-${k}">Quoted Price</label><input id="qp-${k}" data-f="qp" type="number" min="0" step="any" value="${m.qp}" placeholder="$ /pc"><span class="d">$ /pc<span class="im"></span></span></div><div class="r pkr"><label>Packaging</label><select data-f="pk" aria-label="Packaging"><option value="">None</option>${PACKS().map((p,i)=>`<option value="${i}" ${String(m.pk)===String(i)?'selected':''}>${p[0]} · $ ${p[1]}</option>`).join('')}</select><span class="d qy">Qty:</span><input class="pn" data-f="pn" type="number" min="1" step="1" value="${m.pn}" aria-label="Number of packages" title="Number of packages"><span class="d pd"></span></div><div class="tot"><span class="t">Price per piece · <span class="tl">EXW Parma-OH</span></span><b class="tv">—</b></div><div class="r fmr"><label>Final margin</label><b class="fm num">—</b></div></div><span class="s">Price = (Material piece cost + Machining total per pc) ÷ (1 − Margin). Rows: margin −10, −5, defined, +5, +10 points.</span>`;
-    el.addEventListener('input',e=>{const f=e.target.dataset.f; if(f==='mg'||!f){if(e.target.id==='mg-'+k){m.mg=e.target.value;mchFin(k)}return} m[f]=e.target.value; if(f==='qq'&&(omOn(k)||m.out)){mchFin(k);return} qtUpd(el,k)});
-    el.addEventListener('change',e=>{if(e.target.dataset.f==='pk'){m.pk=e.target.value;qtUpd(el,k)}})}
+  if(!el.querySelector('.mg')){el.innerHTML=`<span class="l">Final price${el.dataset.t?' · '+el.dataset.t:''}</span><div class="mg"><label for="mg-${k}">Margin</label><input id="mg-${k}" type="number" step="any" max="99.9" value="${m.mg}"><span>%</span></div><div class="mgt"></div><div class="qt"><div class="r"><label for="qq-${k}">Quoted Quantity</label><input id="qq-${k}" data-f="qq" type="number" min="1" step="1" value="${m.qq}" placeholder="pcs"><span class="d">pcs</span></div><div class="r"><label for="qp-${k}">Quoted Price</label><input id="qp-${k}" data-f="qp" type="number" min="0" step="any" value="${m.qp}" placeholder="$ /pc"><span class="d">$ /pc<span class="im"></span></span></div><div class="pkb"><div class="pkh">Packaging · crates (quantity is free to fill in)</div>${PACKS().map((p,i)=>`<div class="r pkr"><label>${p.n} · $ ${p.c}</label><input class="pn" data-f="pq" data-i="${i}" type="number" min="0" step="1" value="${m.pq[i]}" placeholder="qty" aria-label="${p.n} quantity"><span class="d ps" data-i="${i}"></span></div>`).join('')}<div class="r"><span class="d pd"></span></div></div><div class="tot"><span class="t">Price per piece · <span class="tl">EXW Parma-OH</span></span><b class="tv">—</b></div><div class="r fmr"><label>Final margin</label><b class="fm num">—</b></div></div><span class="s">Price = (Material piece cost + Machining total per pc) ÷ (1 − Margin). Rows: margin −10, −5, defined, +5, +10 points.</span>`;
+    el.addEventListener('input',e=>{const f=e.target.dataset.f; if(f==='mg'||!f){if(e.target.id==='mg-'+k){m.mg=e.target.value;mchFin(k)}return} if(f==='pq'){m.pq[+e.target.dataset.i]=e.target.value;qtUpd(el,k);return} m[f]=e.target.value; if(f==='qq'&&(omOn(k)||m.out)){mchFin(k);return} qtUpd(el,k)});
+    }
   el.querySelector('.mgt').innerHTML=P.length?P.map(tab).join(''):'';
   qtUpd(el,k);
 }
@@ -2284,24 +2328,24 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
   const note=(r,c1,v)=>put(r,c1,X1,v,{color:'FFCDDCF0',sz:9,wrap:false,ind:1});
   const rq=y;blueRow(y,22);lab(y,'QUOTED QUANTITY');inp(y,4,5,M.qq!==''&&parseFloat(M.qq)>0?parseFloat(M.qq):null,'0');note(y,6,'pcs');const QQ=`$D$${rq}`;y++;
   const rp=y;blueRow(y,22);lab(y,'QUOTED PRICE');inp(y,4,5,M.qp!==''&&isFinite(parseFloat(M.qp))?parseFloat(M.qp):null,money);const QP=`$D$${rp}`;y++;
-  const rk=y;blueRow(y,22);lab(y,'PACKAGING');inp(y,4,5,M.pk===''?'None':PACKS()[+M.pk][0],'@');put(y,6,6,'Qty:',{color:XC.ink,sz:9,h:'right'});inp(y,7,7,parseFloat(M.pn)>0?parseFloat(M.pn):1,'0.##');const PK=`$D$${rk}`,PN=`$G$${rk}`;y++;
+  /* packaging: one row per crate type (cost, suggestion from the tool, free quantity). Cost × quantity summed. */
+  const sugX=packSug(mk), pkRows=[];
+  PACKS().forEach((q,i)=>{const r=y;pkRows.push(r);blueRow(y,20);lab(y,q.n);put(y,4,4,q.c,{color:'FFCDDCF0',sz:9,h:'right',nf:money});put(y,5,5,'Qty:',{color:XC.ink,sz:9,h:'right'});inp(y,6,6,parseFloat(M.pq[i])>0?parseFloat(M.pq[i]):null,'0');note(y,7,sugX[i]?'Tool suggestion: '+sugX[i]:'');
+    ws.getCell(r,6).dataValidation={type:'decimal',operator:'greaterThanOrEqual',formulae:[0],allowBlank:true,showErrorMessage:true,error:'Enter a quantity of crates (0 or more).'};y++});
+  const rk=pkRows[0], rf=pkRows[1], rkx=y; blueRow(y,18); y++;
+  const PQ=`$F$${pkRows[0]}:$F$${pkRows[3]}`, PCOST=`$D$${pkRows[0]}:$D$${pkRows[3]}`;
   const FR='0';
-  /* packaging options (lookup) */
-  const rowsPk=[['None',0],...PACKS()], po=y, rf=po;
-  rowsPk.forEach((q,i)=>{blueRow(y,16);put(y,X0,3,i?'':'Packaging options',{color:'FFCDDCF0',sz:8.5,ind:1,wrap:false,i:true});put(y,4,4,q[0],{color:'FFCDDCF0',sz:8.5,wrap:false});put(y,5,5,q[1],{color:'FFCDDCF0',sz:8.5,h:'right',nf:money});y++});
-  const OPN=`$D$${po}:$D$${po+rowsPk.length-1}`, OPT=`$D$${po}:$E$${po+rowsPk.length-1}`;
-  ws.getCell(rk,4).dataValidation={type:'list',allowBlank:false,formulae:[OPN],showErrorMessage:true,errorTitle:'Packaging',error:'Pick one of the listed packaging options.'};
   ws.getCell(rq,4).dataValidation={type:'decimal',operator:'greaterThan',formulae:[0],allowBlank:true,showErrorMessage:true,error:'Enter a quantity above 0.'};
   /* helpers (hidden column K): packaging total, per pc, freight per pc, machining at the quoted quantity, price, cost */
   const H=n=>`$K$${n}`;
-  ws.getCell(`K${rq}`).value={formula:`IF(N(${QQ})>0,IFERROR(VLOOKUP(${PK},${OPT},2,FALSE),0)*MAX(1,N(${PN})),0)`}; /* packaging total */
+  ws.getCell(`K${rq}`).value={formula:`IF(N(${QQ})>0,SUMPRODUCT(${PCOST},${PQ}),0)`}; /* packaging total */
   ws.getCell(`K${rp}`).value={formula:`IF(N(${QQ})>0,${H(rq)}/${QQ},0)`}; /* packaging per pc */
   ws.getCell(`K${rk}`).value={formula:`IF(N(${QQ})>0,N(${FR})/${QQ},0)`}; /* freight per pc */
   ws.getCell(`K${rf}`).value={formula:M.out?`IF(N(${QQ})>0,${opv},"")`:`IF(N(${QQ})>0,${RATE}/60*(SUM(${SU})/${QQ}+SUM(${TT})),"")`}; /* machining per pc at the quoted quantity */
   const rt1=y; ws.getCell(`K${rt1}`).value={formula:`IF(AND(N(${QQ})>0,ISNUMBER(${QP})),${QP}+${H(rp)}+${H(rk)},"")`}; /* price per piece */
   const TOTP=H(rt1);
   put(rp,6,X1,{formula:`IF(AND(N(${QQ})>0,ISNUMBER(${QP}),ISNUMBER(${MAT}),N(${QP})>0),"$ /pc  ·  margin "&ROUND((1-(${MAT}+${H(rf)})/${QP})*100,1)&"%","$ /pc")`},{color:'FFCDDCF0',sz:9,wrap:false,ind:1});
-  put(rk,8,X1,{formula:`IF(${H(rp)}>0,"$ "&FIXED(${H(rp)},2)&"/pc"&IF(ISNUMBER(${TOTP}),"  ·  "&ROUND(${H(rp)}/${TOTP}*100,1)&"%",""),"")`},{color:'FFCDDCF0',sz:9,wrap:false,ind:1});
+  put(rkx,4,X1,{formula:`IF(${H(rp)}>0,"$ "&FIXED(${H(rp)},2)&"/pc"&IF(ISNUMBER(${TOTP}),"  ·  "&ROUND(${H(rp)}/${TOTP}*100,1)&"%",""),"")`},{color:'FFCDDCF0',sz:9,wrap:false,ind:1});
   /* result */
   const priceRow=y;blueRow(y,34);for(let c=2;c<=X1;c++)ws.getCell(y,c).border={top:thin('FF6F93C4')};
   put(y,X0,6,{formula:`"PRICE PER PIECE  ·  EXW Parma-OH"`},{color:XC.ink,b:true,sz:10,wrap:false,ind:1,border:{top:thin('FF6F93C4')}});
