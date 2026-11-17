@@ -2812,12 +2812,13 @@ pafView();
   function parma(wb, srcName) {
     const ws = sheet(wb, 'Data');
     const head = {}; ws.getRow(1).eachCell((c, i) => { head[norm(val(c)).toLowerCase()] = i; });
-    const need = ['description', 'lot #', 'location', 'qty on hand', 'unit cost'];
+    const need = ['description', 'lot #', 'warehouse', 'location', 'qty on hand', 'unit cost'];   // only warehouse AGM12300 is used
     need.forEach(k => { if (!head[k]) throw new Error('Parma "Data" sheet: column "' + k + '" not found'); });
     const N = '(\\d+(?:\\.\\d+)?(?:\\s+\\d+/\\d+)?)', X = '\\s*x\\s*';
     const reBL = new RegExp('^' + N + X + N + X + N, 'i'), re2 = new RegExp('^' + N + X + N, 'i'), reCL = new RegExp('^' + N + X + N + '\\s*,\\s*' + N + X + N, 'i');
     const rows = [];
     for (let r = 2; r <= ws.rowCount; r++) {
+      if (norm(val(ws.getCell(r, head['warehouse']))).toUpperCase() !== 'AGM12300') continue;
       const desc = norm(val(ws.getCell(r, head['description'])));
       if (!/nominal|offall/i.test(desc)) continue;
       const qty = num(val(ws.getCell(r, head['qty on hand'])));
