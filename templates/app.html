@@ -307,6 +307,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .mch .act button.add{border-color:var(--brand);color:var(--brand);font-weight:700}
 .mch .act button:hover{background:var(--brand-soft)}
 .mch .sub{font-size:11px;color:var(--fg-muted);margin:0}
+.psrc{display:flex;flex-direction:column;gap:3px;margin:8px 0 2px;padding:8px 10px;border:1px solid var(--brand);border-radius:var(--radius);background:var(--brand-soft);font-size:12px}.psrc .pstl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-muted)}.psrc label{display:flex;align-items:center;gap:6px;cursor:pointer}.psrc input{accent-color:var(--brand)}
 .matcard{display:block;margin:8px 0 2px;border:1px solid var(--line);border-left:3px solid var(--nominal,var(--brand));border-radius:var(--radius);padding:8px 10px;background:var(--surface-2);cursor:grab}
 .matcard:active{cursor:grabbing}.matcard.dragging{opacity:.45}
 .matcard .lot{font-family:var(--font-num);font-size:12px;font-weight:500;word-break:break-word;display:block}
@@ -603,7 +604,7 @@ const gv=id=>{const el=$(id);let v=parseFloat(el.value);if(UNIT.us&&UK[id]){cons
    Category and sizes are read from the Lot# text (BL = W×H×L · RD/RN = OD×L · CL = Small OD×L, Large OD×L; sizes in inches).
    The best option is the stock with the minimum volume that still holds V''. Snapshot embedded below (rows with qty > 0 whose size could be read). */
 const DIGGER_DATA=__D.parma_stock.rows;
-const DG={fam:{BL:'',RD:'',RN:''},env:{BL:0},last:{},sel:{BL:null,RD:null,RN:null},pin:{BL:null,RD:null,RN:null}};
+const DG={fam:{BL:'',RD:'',RN:''},env:{BL:0},last:{},sel:{BL:null,RD:null,RN:null},pin:{BL:null,RD:null,RN:null},lot:{BL:false,RD:false,RN:false}};
 const DG_TOL=0.005, DG_CAT={BL:'Blocks (BL)',RD:'Rods (RD)',RN:'Rounds (RN)'};
 function dgFit(cat,spec,r){
   const c=r[1], d=r[2];
@@ -640,6 +641,33 @@ function dgOk(cat,r){
   }catch(e){return true}finally{MIXON=saveMix}
   return !res.error&&(!res.agg||res.agg.N===1);   // a card is offered only when ONE Feedstock piece holds the whole order
 }
+/* Price per kg of a stock lot: nominal Unit Cost is per piece (÷ weight of the piece), offall Unit Cost is per lb. */
+function lotPerKg(cat,r){
+  const d=r[2], d2=n=>'$ '+nf(Math.abs(n),2);
+  if(!(r[7]>0))return null;
+  if(r[0]===1)return {perKg:r[7]*LB2KG,how:`${d2(r[7])}/lb`};
+  const vol=r[1]==='BL'?d[0]*d[1]*d[2]:r[1]==='CL'?Math.PI/4*(d[0]*d[0]*d[1]+d[2]*d[2]*d[3]):Math.PI/4*d[0]*d[0]*d[1];
+  let rho; try{rho=cat==='BL'?readIn().D:(cat==='RD'?rRead():qRead()).rho}catch(e){rho=NaN}
+  if(!(rho>0))return null;
+  const kg=vol*16.387064e-6*rho; return {perKg:r[7]/kg,how:`${d2(r[7])} per piece, ${Wu(kg,1)}`};
+}
+/* The Digger lot currently loaded as the Feedstock of a calculator (null when the Feedstock was typed or taken from Material cost). */
+function lotApplied(cat){
+  const a=DG.applied; if(!a||a.cat!==cat||a.i==null||a.mat)return null;
+  if(!a.ids.every((id,j)=>{const e=$(id);return e&&Math.abs(gv(id)-a.vals[j])<1e-6}))return null;
+  const r=DIGGER_DATA[a.i]; return r&&r[7]>0?r:null;
+}
+/* Price per kg used by the costing: the Material cost list item, or (when the user confirms it) the Unit Cost of the Digger lot loaded as Feedstock. */
+function priceMat(cat){
+  const m=matSrc(cat); if(!DG.lot[cat])return m;
+  const r=lotApplied(cat), pk=r&&lotPerKg(cat,r); if(!pk||!isFinite(pk.perKg))return m;
+  return Object.assign({},m,{kg:pk.perKg,fromLot:r[3]});
+}
+function priceSrcUI(cat){
+  const r=lotApplied(cat), pk=r&&lotPerKg(cat,r); if(!pk||!isFinite(pk.perKg))return '';
+  const m=matSrc(cat), on=DG.lot[cat], nm='psrc-'+cat;
+  return `<div class="psrc" role="radiogroup" aria-label="Price per ${MUl()} comes from"><span class="pstl">Price per ${MUl()} from</span><label title="Price list item selected above"><input type="radio" name="${nm}" value="list" ${on?'':'checked'}>Material cost · $ ${nf(PP(m.kg),2)}/${MUl()}</label><label title="Unit Cost of the Material Digger lot loaded as Feedstock, converted to $/${MUl()}"><input type="radio" name="${nm}" value="lot" ${on?'checked':''}>Digger lot ${r[3]} · $ ${nf(PP(pk.perKg),2)}/${MUl()}</label></div>`;
+}
 /* Cost comparison for the card clicked in the Material Digger: its Unit Cost (column M, per stock piece) spread over the demanded pieces vs the material piece cost of the normal calculation (Material cost). */
 function dgMark(cat,light){
   const box=$('dg-'+cat+'-body'); if(!box)return;
@@ -672,19 +700,11 @@ function dgCompare(cat){
   const i=DG.sel[cat]; if(i==null||!DIGGER_DATA[i])return '';
   const r=DIGGER_DATA[i], d=r[2], d2=n=>'$ '+nf(Math.abs(n),2), head=`<b>Lot ${r[3]}</b>`;
   if(!(r[7]>0))return `<p>${head}: no Unit Cost in the report.</p>`;
-  const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q'], base=P&&P[0]?P[0].b:NaN;
+  const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q'], base=P&&P[0]?P[0].b*matSrc(cat).kg/priceMat(cat).kg:NaN;   // always against the price list item
   const sim=dgSim(cat,r);
   if(!sim)return `<p>${head}: does not work as the Feedstock for this calculation.</p>`;
   if(sim.N!==1)return `<p>${head}: one piece does not hold the whole order (${sim.N} pieces needed).</p>`;
-  /* price of the stock piece per kg: nominal Unit Cost is per piece, offall Unit Cost is per lb */
-  let perKg, how;
-  if(r[0]===1){perKg=r[7]*LB2KG; how=`${d2(r[7])}/lb`}
-  else{
-    const vol=r[1]==='BL'?d[0]*d[1]*d[2]:r[1]==='CL'?Math.PI/4*(d[0]*d[0]*d[1]+d[2]*d[2]*d[3]):Math.PI/4*d[0]*d[0]*d[1];
-    let rho; try{rho=cat==='BL'?readIn().D:(cat==='RD'?rRead():qRead()).rho}catch(e){rho=NaN}
-    if(!(rho>0))return '';
-    const kg=vol*16.387064e-6*rho; perKg=r[7]/kg; how=`${d2(r[7])} per piece, ${Wu(kg,1)}`;
-  }
+  const pk=lotPerKg(cat,r); if(!pk)return ''; const perKg=pk.perKg, how=pk.how;
   const lot=sim.calcKg*perKg/sim.n;
   const detail=`${how} × (${Wu(sim.wP,1)} pieces + ${Wu(sim.loss,1)} depreciated offall) ÷ ${sim.n} pcs`;
   if(!isFinite(base)||!(base>0))return `<p>${head}: ${d2(lot)} per piece (${detail}). Select a material in Material cost to compare.</p>`;
@@ -702,6 +722,8 @@ function dgPin(cat){ if(!DG.pin[cat]&&DG.last[cat])DG.pin[cat]={key:dgDemKey(cat
 document.addEventListener('input',e=>{ if(!e.isTrusted)return; const t=e.target; if(!t||!t.closest)return;
   const fs=t.closest('aside.side > section.card'); if(!fs)return; const root=fs.closest('[id^=tab-]'); if(!root)return;
   const cat=Object.keys(DG_TAB).find(k=>DG_TAB[k]===root.id); if(cat&&[...root.querySelectorAll('aside.side > section.card')].indexOf(fs)===(cat==='BL'?2:1))DG.pin[cat]=null; },true);
+document.addEventListener('change',e=>{const t=e.target; if(!t||!t.name||!t.name.startsWith('psrc-'))return;
+  const cat=t.name.slice(5); DG.lot[cat]=t.value==='lot'; ({BL:render,RD:rRender,RN:qRender})[cat]();});
 function dgUpdate(cat,spec){
   const box=$('dg-'+cat+'-body'); if(!box)return;
   if(spec&&DG.pin[cat]){ if(DG.pin[cat].key===dgDemKey(cat))spec=DG.pin[cat].spec; else DG.pin[cat]=null }
@@ -1102,7 +1124,7 @@ function render(){
   dgUpdate('BL',{list:opt.envs.map(e=>({label:dn(e.id)+' · '+Lc(e.size[0],0)+' × '+Lc(e.size[1],0)+' × '+Lc(e.size[2],0),mm:e.size}))});
   const perm=r.perm.map(i=>AX[i]).join(' ');
   const totKg=T.kg, lossKg=T.loss;
-  const mat=PRICES[Math.min(state.mat,PRICES.length-1)];
+  const mat=priceMat('BL');
   const cd=r.mix?[{id:0,Q:I.Q,kg:kgOf[0],w:kgOf[0]*I.Q}]:r.dems.map(d=>{const Q=multi?QT:d.Q;return {id:d.id,Q,kg:kgOf[d.id],w:kgOf[d.id]*Q}}).sort((a,b)=>a.id-b.id);
   const wSum=cd.reduce((s,d)=>s+d.w,0);
   cd.forEach(d=>{d.loss=lossKg*d.w/wSum;d.cost=(d.w+d.loss)*mat.kg/d.Q});
@@ -1172,7 +1194,7 @@ function render(){
         ${PRICE_SAMPLE?'<div class="sample">Price List Trading not loaded yet. The prices below are examples.</div>':''}
         <div class="field"><label for="mat">Material · grade and size</label>
           <select id="mat">${[...new Set(PRICES.map(p=>p.grp))].map(g=>`<optgroup label="${g}">${PRICES.map((p,i)=>p.grp===g?`<option value="${i}" ${i===state.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`:'').join('')}</optgroup>`).join('')}</select></div>
-        ${stockMsg(mat)}${matLow('BL')}${matCard('BL')}${xcHTML('blocks')}
+        ${stockMsg(mat)}${matLow('BL')}${matCard('BL')}${priceSrcUI('BL')}${xcHTML('blocks')}
         <dl class="dl num">
           ${cd.map(d=>`<dt>${r.mix?'Pieces (both groups)':dn(d.id)} · ${Wu(d.kg,2)} × ${d.Q} pcs</dt><dd>${Wu(d.w,2)} <span class="pctnote" title="Demand weight ÷ total calculation weight">(${nf(calcKg?d.w/calcKg*100:0,1)}%)</span></dd>`).join('')}
           <dt>+ Weighted depreciated weight</dt><dd>${Wu(lossKg,2)} <span class="pctnote" title="Depreciated weight ÷ total calculation weight">(${nf(calcKg?lossKg/calcKg*100:0,1)}%)</span></dd>
@@ -1534,7 +1556,7 @@ function rRender(){
   const kgP=rSidebar(); const r=rSolve(); state.rres=r;
   const main=$('rmain');
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('RD',null);return}
-  const I=r.I, off=r.off, mat=RODPRICES[Math.min(rstate.mat,RODPRICES.length-1)];
+  const I=r.I, off=r.off, mat=priceMat('RD');
   const label=r.tube?'Tube':'Rod';
   dgUpdate('RD',{od:I.od,L:r.used});
   const devOk=!off||(off.m&&!off.m.na);
@@ -1600,7 +1622,7 @@ function rRender(){
         ${omSt('rods').on?omHTML('rods',['']):`
         <div class="field"><label for="rmat">Material · grade and size</label>
           <select id="rmat">${RODPRICES.map((p,i)=>`<option value="${i}" ${i===rstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>
-        ${stockMsg(mat)}${matLow('RD')}${matCard('RD')}${xcHTML('rods')}
+        ${stockMsg(mat)}${matLow('RD')}${matCard('RD')}${priceSrcUI('RD')}${xcHTML('rods')}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${off&&!devOk&&!ringKgX?'— <span class="pctnote">(no table row)</span>':Wu(loss,2)+' '+pctn(loss)+(off&&!devOk?' <span class="pctnote">(excess OD stock only; Offall has no table row)</span>':'')}</dd>
@@ -1794,13 +1816,13 @@ function qRender(){
     <div class="cost">
       <div class="in">
         ${omSt('rounds').on?omHTML('rounds',['']):`
-        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>${stockMsg(ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)])}${matLow('RN')}${matCard('RN')}${xcHTML('rounds')}`
+        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>${stockMsg(ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)])}${matLow('RN')}${matCard('RN')}${priceSrcUI('RN')}${xcHTML('rounds')}`
         :`<div class="field"><label for="qprice">Cost per kg · Price $/kg</label><div class="inp"><input id="qprice" type="number" min="0" step="any" value="${qstate.price}" placeholder="awaiting price list"><span>$/kg</span></div></div>`}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${Wu(loss,2)} ${pctn(loss)}${naMsg?' <span class="pctnote">(Offall has no table row)</span>':''}</dd>
           <dt><b>Total calculation weight</b></dt><dd><b>${Wu(calcKg,2)}</b></dd>
-          <dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)].kg),2)}/${MUl()}</dd>
+          <dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(priceMat('RN').kg),2)}/${MUl()}</dd>
           <dt>Lot cost</dt><dd id="qlot"></dd>
           <dt><b>Piece cost</b></dt><dd><b id="qpc">—</b> /pc</dd>
           <dt><b>Piece cost + Extra cost</b></dt><dd><b data-pcx="q">—</b> /pc</dd>
@@ -1813,7 +1835,7 @@ function qRender(){
     </div>
   </section>`;
   const cost=()=>{
-    const kg=ROUNDPRICES.length?ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)].kg:parseFloat(qstate.price);
+    const kg=ROUNDPRICES.length?priceMat('RN').kg:parseFloat(qstate.price);
     const has=kg>=0&&isFinite(kg);
     if($('qlot')){$('qlot').textContent=has?'$ '+nf(calcKg*kg,2):'—'; $('qpc').textContent=has?'$ '+nf(calcKg*kg/QT,2):'—'} mcSet('rounds','q',omPrice('rounds',0,has?calcKg*kg/QT:NaN));xcShow('rounds'); if(window.mchFin)mchFin('q'); if(window.dgMark)dgMark('RN');
   };
@@ -1860,7 +1882,7 @@ function matSrc(cat){return ({BL:()=>PRICES[Math.min(state.mat,PRICES.length-1)]
 function matVolIn3(m){return m.d.length===3?m.d[0]*m.d[1]*m.d[2]:Math.PI/4*m.d[0]*m.d[0]*m.d[1]}
 function matDens(m){return m&&m.w&&m.d?m.w/matVolIn3(m)*DENS_F:null}          // lb / in³ → kg/m³
 var DEV$=false;
-function DV(kgW,cat){return DEV$?'$ '+nf(kgW*matSrc(cat).kg,2):Wu(kgW,2)}
+function DV(kgW,cat){return DEV$?'$ '+nf(kgW*priceMat(cat).kg,2):Wu(kgW,2)}
 function DVH(){return DEV$?'$ amount':'Weighted weight'}
 function devSeg(id){return `<div class="seg devseg" role="radiogroup" aria-label="Last column"><label><input type="radio" name="devm-${id}" value="w" ${DEV$?'':'checked'}>Weight</label><label><input type="radio" name="devm-${id}" value="$" ${DEV$?'checked':''}>$ amount</label></div>`}
 document.addEventListener('change',e=>{const t=e.target;if(t&&t.name&&t.name.startsWith('devm-')){DEV$=t.value==='$';({blocks:render,rods:rRender,rounds:qRender})[rTab()]()}});
@@ -2087,7 +2109,7 @@ function matApply(cat){
     dgSet(pre+'D',m.d[0]);dgSet(pre+'L',m.d[1]);
   }
   const pre=cat==='RD'?'r':'q', ids=cat==='BL'?['nW','nH','nL']:[pre+'D',pre+'L'];
-  DG.applied={cat,mat:m.name,ids,vals:ids.map(id=>gv(id))};
+  DG.applied={cat,mat:m.name,ids,vals:ids.map(id=>gv(id))}; DG.lot[cat]=false; ({BL:render,RD:rRender,RN:qRender})[cat]();
   const fs=$('dg-'+cat).previousElementSibling; if(fs){fs.classList.remove('dg-done');void fs.offsetWidth;fs.classList.add('dg-done')}
 }
 function matBind(){
@@ -2115,7 +2137,7 @@ function dgApply(cat,i){
     else{dgSet(pre+'D',d[0]);dgSet(pre+'L',d[1])}
   }
   {const pre=cat==='RD'?'r':'q', ids=cat==='BL'?['nW','nH','nL']:c==='CL'?[pre+'D1',pre+'L1',pre+'D2',pre+'L2']:[pre+'D',pre+'L'];
-   if(cat==='BL'?c==='BL':true)DG.applied={cat,i,ids,vals:ids.map(id=>gv(id))}}
+   if(cat==='BL'?c==='BL':true)DG.applied={cat,i,ids,vals:ids.map(id=>gv(id))}; DG.lot[cat]=false; ({BL:render,RD:rRender,RN:qRender})[cat]()}
   const fs=$('dg-'+cat).previousElementSibling; if(fs){fs.classList.remove('dg-done');void fs.offsetWidth;fs.classList.add('dg-done')}
 }
 document.querySelectorAll('.dg').forEach(card=>{
@@ -2494,7 +2516,7 @@ function snapTake(){
     v[el.id]=el.type==='checkbox'?el.checked:(UK[el.id]?{b:el.dataset.base}:el.value)});
   const tab=TABS.find(k=>!$('tab-'+k).hidden)||'blocks';
   return jclone({v,tab,state:{mat:state.mat,sel:state.sel,view:state.view},rstate:{mat:rstate.mat,view:rstate.view},qstate:{mat:qstate.mat,price:qstate.price,view:qstate.view},
-    MCH:window.__MCH||{},OM:window.__OM||{},XC:window.__XC||{},DG:{fam:DG.fam,env:DG.env,applied:DG.applied||null}});
+    MCH:window.__MCH||{},OM:window.__OM||{},XC:window.__XC||{},DG:{fam:DG.fam,env:DG.env,applied:DG.applied||null,lot:DG.lot}});
 }
 /* Saved states come from the database / a file: coerce them before they ever reach a template string.
    Only the free-text fields (v = vendor, n = quote #, o = notes) may keep special characters; they are never put in markup. */
@@ -2512,7 +2534,7 @@ function snapPut(S0_){
   state.mat=S.state.mat;state.sel=S.state.sel;state.hi=-1;state.view=S.state.view;
   rstate.mat=S.rstate.mat;rstate.view=S.rstate.view;qstate.mat=S.qstate.mat;qstate.price=S.qstate.price;qstate.view=S.qstate.view;
   window.__MCH=S.MCH;window.__OM=S.OM;window.__XC=S.XC;window.__MCHP={};
-  DG.fam=S.DG.fam||{BL:'',RD:'',RN:''};DG.env=S.DG.env||{BL:0};DG.applied=S.DG.applied||null;DG.last={};DG.pin={BL:null,RD:null,RN:null};
+  DG.fam=S.DG.fam||{BL:'',RD:'',RN:''};DG.env=S.DG.env||{BL:0};DG.applied=S.DG.applied||null;DG.last={};DG.pin={BL:null,RD:null,RN:null};DG.lot=S.DG.lot||{BL:false,RD:false,RN:false};
   render();rRender();qRender();showTab(S.tab);
 }
 function pafLabel(i){const p=PAF.parts[i];return (p.no||'').trim()||('Part '+(i+1))}
