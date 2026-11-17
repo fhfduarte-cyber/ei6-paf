@@ -641,30 +641,55 @@ function dgOk(cat,r){
   return !res.error&&(!res.agg||res.agg.N===1);   // a card is offered only when ONE Feedstock piece holds the whole order
 }
 /* Cost comparison for the card clicked in the Material Digger: its Unit Cost (column M, per stock piece) spread over the demanded pieces vs the material piece cost of the normal calculation (Material cost). */
-function dgMark(cat){
+function dgMark(cat,light){
   const box=$('dg-'+cat+'-body'); if(!box)return;
   box.querySelectorAll('li[draggable]').forEach(li=>li.classList.toggle('sel',+li.dataset.i===DG.sel[cat]));
-  const out=box.querySelector('.dgcmp'); if(out)out.innerHTML=dgCompare(cat);
+  const out=box.querySelector('.dgcmp'); if(out)out.innerHTML=light?'':dgCompare(cat);
+}
+/* Runs the whole calculation (placement, cutting sequence, depreciation by the Depreciation rules) with the clicked stock lot as the Feedstock, and returns the weights that price it. */
+function dgSim(cat,r){
+  const d=r[2], mm=x=>x*25.4, saveMix=MIXON; let res;
+  try{
+    if(cat==='BL'){const o=readIn; readIn=()=>Object.assign(o(),{N:d.map(mm)}); try{res=solve()}finally{readIn=o}}
+    else{
+      const isR=cat==='RD', o=isR?rRead:qRead;
+      const ov=r[1]==='CL'?{collar:true,d1:mm(d[0]),l1:mm(d[1]),D2:mm(d[2]),l2:mm(d[3])}:{collar:false,D:mm(d[0]),L:mm(d[1])};
+      const f=()=>Object.assign(o(),ov); if(isR)rRead=f; else qRead=f;
+      try{res=isR?rSolve():qSolve()}finally{if(isR)rRead=o;else qRead=o}
+    }
+  }catch(e){return null}finally{MIXON=saveMix}
+  if(!res||res.error||!res.agg)return null;
+  const A=res.agg, n=A.Q;
+  if(cat!=='BL')return {n,wP:res.pieceKg*n,loss:A.loss,calcKg:res.pieceKg*n+A.loss,N:A.N};
+  const kgOf=pieceWeight(), I=res.I, multi=A.N>1;
+  const optE=e=>e.r.opts[Math.min(state.sel,e.r.opts.length-1)];
+  let loss=0; A.list.forEach(e=>{loss+=e.n*optE(e).floss});
+  const dems=res.mix?[{id:0,Q:I.Q}]:res.dems.map(x=>({id:x.id,Q:multi?n:x.Q}));
+  const wP=dems.reduce((t,x)=>t+kgOf[x.id]*x.Q,0);
+  return {n,wP,loss,calcKg:wP+loss,N:A.N};
 }
 function dgCompare(cat){
   const i=DG.sel[cat]; if(i==null||!DIGGER_DATA[i])return '';
-  const r=DIGGER_DATA[i], d2=n=>'$ '+nf(Math.abs(n),2);
-  if(!(r[7]>0))return `<p>Lot ${r[3]}: no Unit Cost in the report.</p>`;
-  let n; try{ if(cat==='BL'){const I=readIn(); n=I.Q+(COMBINED_ON&&I.on2?I.Q2:0)} else n=(cat==='RD'?rRead():qRead()).Q }catch(e){n=NaN}
+  const r=DIGGER_DATA[i], d=r[2], d2=n=>'$ '+nf(Math.abs(n),2), head=`<b>Lot ${r[3]}</b>`;
+  if(!(r[7]>0))return `<p>${head}: no Unit Cost in the report.</p>`;
   const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q'], base=P&&P[0]?P[0].b:NaN;
-  if(!(n>0))return '';
-  /* nominal stock: Unit Cost is per piece; offall: Unit Cost is per lb, so it is multiplied by the weight of the stock piece (volume × the density of the calculation) */
-  let tot=r[7], how=d2(r[7]);
-  if(r[0]===1){
-    const d=r[2], vol=r[1]==='BL'?d[0]*d[1]*d[2]:r[1]==='CL'?Math.PI/4*(d[0]*d[0]*d[1]+d[2]*d[2]*d[3]):Math.PI/4*d[0]*d[0]*d[1];
+  const sim=dgSim(cat,r);
+  if(!sim)return `<p>${head}: does not work as the Feedstock for this calculation.</p>`;
+  if(sim.N!==1)return `<p>${head}: one piece does not hold the whole order (${sim.N} pieces needed).</p>`;
+  /* price of the stock piece per kg: nominal Unit Cost is per piece, offall Unit Cost is per lb */
+  let perKg, how;
+  if(r[0]===1){perKg=r[7]*LB2KG; how=`${d2(r[7])}/lb`}
+  else{
+    const vol=r[1]==='BL'?d[0]*d[1]*d[2]:r[1]==='CL'?Math.PI/4*(d[0]*d[0]*d[1]+d[2]*d[2]*d[3]):Math.PI/4*d[0]*d[0]*d[1];
     let rho; try{rho=cat==='BL'?readIn().D:(cat==='RD'?rRead():qRead()).rho}catch(e){rho=NaN}
     if(!(rho>0))return '';
-    const lb=vol*16.387064e-6*rho*LB2KG; tot=r[7]*lb; how=`${d2(r[7])}/lb × ${nf(lb,1)} lb`;
+    const kg=vol*16.387064e-6*rho; perKg=r[7]/kg; how=`${d2(r[7])} per piece, ${Wu(kg,1)}`;
   }
-  const lot=tot/n;
-  if(!isFinite(base)||!(base>0))return `<p>Lot ${r[3]}: ${d2(lot)} per piece (${how} ÷ ${n} pcs). Select a material in Material cost to compare.</p>`;
+  const lot=sim.calcKg*perKg/sim.n;
+  const detail=`${how} × (${Wu(sim.wP,1)} pieces + ${Wu(sim.loss,1)} depreciated offall) ÷ ${sim.n} pcs`;
+  if(!isFinite(base)||!(base>0))return `<p>${head}: ${d2(lot)} per piece (${detail}). Select a material in Material cost to compare.</p>`;
   const diff=base-lot, pct=Math.abs(diff)/base*100;
-  return `<p><b>Lot ${r[3]}</b>: ${d2(lot)} per piece (${how} ÷ ${n} pcs) vs ${d2(base)} per piece with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pct,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pct,1)}%)</span>`}.</p>`;
+  return `<p>${head}: ${d2(lot)} per piece vs ${d2(base)} per piece with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pct,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pct,1)}%)</span>`}.</p><p class="pctnote" style="margin-top:4px">${detail}. Full calculation with this lot as Feedstock: placement, cutting sequence and depreciation.</p>`;
 }
 function dgUpdate(cat,spec){
   const box=$('dg-'+cat+'-body'); if(!box)return;
@@ -707,8 +732,8 @@ function dgUpdate(cat,spec){
     li.addEventListener('click',()=>{const i=+li.dataset.i; DG.sel[cat]=DG.sel[cat]===i?null:i; dgMark(cat)});
   });
   if(DG.sel[cat]!=null&&!box.querySelector(`li[data-i="${DG.sel[cat]}"]`))DG.sel[cat]=null;
-  dgMark(cat);
-  const f=$('dg-'+cat+'-fam'); if(f)f.onchange=e=>{DG.fam[cat]=e.target.value;dgUpdate(cat,DG.last[cat])};
+  dgMark(cat,true);
+  const f=$('dg-'+cat+'-fam'); if(f)f.onchange=e=>{DG.fam[cat]=e.target.value;dgUpdate(cat,DG.last[cat]);dgMark(cat)};
 }
 let OR={c:false}; try{OR.c=localStorage.getItem('or-collapsed')==='1'}catch(e){}
 let PL={c:false}; try{PL.c=localStorage.getItem('pl-collapsed')==='1'}catch(e){}
