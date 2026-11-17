@@ -603,7 +603,7 @@ const gv=id=>{const el=$(id);let v=parseFloat(el.value);if(UNIT.us&&UK[id]){cons
    Category and sizes are read from the Lot# text (BL = W×H×L · RD/RN = OD×L · CL = Small OD×L, Large OD×L; sizes in inches).
    The best option is the stock with the minimum volume that still holds V''. Snapshot embedded below (rows with qty > 0 whose size could be read). */
 const DIGGER_DATA=__D.parma_stock.rows;
-const DG={fam:{BL:'',RD:'',RN:''},env:{BL:0},last:{},sel:{BL:null,RD:null,RN:null}};
+const DG={fam:{BL:'',RD:'',RN:''},env:{BL:0},last:{},sel:{BL:null,RD:null,RN:null},pin:{BL:null,RD:null,RN:null}};
 const DG_TOL=0.005, DG_CAT={BL:'Blocks (BL)',RD:'Rods (RD)',RN:'Rounds (RN)'};
 function dgFit(cat,spec,r){
   const c=r[1], d=r[2];
@@ -691,8 +691,20 @@ function dgCompare(cat){
   const diff=base-lot, pct=Math.abs(diff)/base*100;
   return `<p>${head}: ${d2(lot)} per piece vs ${d2(base)} per piece with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pct,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pct,1)}%)</span>`}.</p><p class="pctnote" style="margin-top:4px">${detail}. Full calculation with this lot as Feedstock: placement, cutting sequence and depreciation.</p>`;
 }
+/* The stock search depends on the demanded part(s) only. When a card (Digger or Material cost) is dropped on the Feedstock, the search spec in use is pinned, so the list does not change with the new Feedstock and the lots stay listed. It is released when the demand is edited or the Feedstock is typed by hand. */
+const DG_TAB={BL:'tab-blocks',RD:'tab-rods',RN:'tab-rounds'};
+function dgDemKey(cat){
+  const root=$(DG_TAB[cat]); if(!root)return '';
+  const secs=[...root.querySelectorAll('aside.side > section.card')].slice(0,cat==='BL'?2:1);
+  return JSON.stringify(secs.map(c=>[...c.querySelectorAll('input')].map(i=>i.type==='checkbox'||i.type==='radio'?+i.checked:i.value)))+'|'+JSON.stringify(UNIT.us);
+}
+function dgPin(cat){ if(!DG.pin[cat]&&DG.last[cat])DG.pin[cat]={key:dgDemKey(cat),spec:DG.last[cat]}; }
+document.addEventListener('input',e=>{ if(!e.isTrusted)return; const t=e.target; if(!t||!t.closest)return;
+  const fs=t.closest('aside.side > section.card'); if(!fs)return; const root=fs.closest('[id^=tab-]'); if(!root)return;
+  const cat=Object.keys(DG_TAB).find(k=>DG_TAB[k]===root.id); if(cat&&[...root.querySelectorAll('aside.side > section.card')].indexOf(fs)===(cat==='BL'?2:1))DG.pin[cat]=null; },true);
 function dgUpdate(cat,spec){
   const box=$('dg-'+cat+'-body'); if(!box)return;
+  if(spec&&DG.pin[cat]){ if(DG.pin[cat].key===dgDemKey(cat))spec=DG.pin[cat].spec; else DG.pin[cat]=null }
   DG.last[cat]=spec;
   const tag=$('dg-'+cat+'-tag'); if(tag)tag.textContent=DG_CAT[cat].split(' ')[1].replace(/[()]/g,'');
   if(!spec){box.innerHTML='<div class="none">Fill in the demanded part(s) to search the stock.</div>';return}
@@ -2067,7 +2079,7 @@ function dgSetDens(id,kgm3){
   el.dispatchEvent(new Event('input',{bubbles:true}));
 }
 function matApply(cat){
-  const m=matSrc(cat); if(!m||!m.d)return;
+  const m=matSrc(cat); if(!m||!m.d)return; dgPin(cat);
   if(cat==='BL'){dgSet('nW',m.d[0]);dgSet('nH',m.d[1]);dgSet('nL',m.d[2]);}
   else{
     const pre=cat==='RD'?'r':'q', box=$(pre+'Collar');
@@ -2094,7 +2106,7 @@ function dgSet(id,inches){
   el.dispatchEvent(new Event('input',{bubbles:true}));
 }
 function dgApply(cat,i){
-  const r=DIGGER_DATA[i]; if(!r)return; const c=r[1], d=r[2];
+  const r=DIGGER_DATA[i]; if(!r)return; dgPin(cat); const c=r[1], d=r[2];
   if(cat==='BL'){ if(c!=='BL')return; dgSet('nW',d[0]);dgSet('nH',d[1]);dgSet('nL',d[2]); dgSetDens('dens',/\bISO\b/i.test(String(r[3]))?1820:1720) }
   else{
     const pre=cat==='RD'?'r':'q', box=$(pre+'Collar');
@@ -2500,7 +2512,7 @@ function snapPut(S0_){
   state.mat=S.state.mat;state.sel=S.state.sel;state.hi=-1;state.view=S.state.view;
   rstate.mat=S.rstate.mat;rstate.view=S.rstate.view;qstate.mat=S.qstate.mat;qstate.price=S.qstate.price;qstate.view=S.qstate.view;
   window.__MCH=S.MCH;window.__OM=S.OM;window.__XC=S.XC;window.__MCHP={};
-  DG.fam=S.DG.fam||{BL:'',RD:'',RN:''};DG.env=S.DG.env||{BL:0};DG.applied=S.DG.applied||null;DG.last={};
+  DG.fam=S.DG.fam||{BL:'',RD:'',RN:''};DG.env=S.DG.env||{BL:0};DG.applied=S.DG.applied||null;DG.last={};DG.pin={BL:null,RD:null,RN:null};
   render();rRender();qRender();showTab(S.tab);
 }
 function pafLabel(i){const p=PAF.parts[i];return (p.no||'').trim()||('Part '+(i+1))}
