@@ -649,14 +649,22 @@ function dgMark(cat){
 function dgCompare(cat){
   const i=DG.sel[cat]; if(i==null||!DIGGER_DATA[i])return '';
   const r=DIGGER_DATA[i], d2=n=>'$ '+nf(Math.abs(n),2);
-  if(r[7]==null||!isFinite(r[7]))return `<p>Lot ${r[3]}: no Unit Cost in the report.</p>`;
+  if(!(r[7]>0))return `<p>Lot ${r[3]}: no Unit Cost in the report.</p>`;
   let n; try{ if(cat==='BL'){const I=readIn(); n=I.Q+(COMBINED_ON&&I.on2?I.Q2:0)} else n=(cat==='RD'?rRead():qRead()).Q }catch(e){n=NaN}
   const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q'], base=P&&P[0]?P[0].b:NaN;
   if(!(n>0))return '';
-  const lot=r[7]/n;
-  if(!isFinite(base)||!(base>0))return `<p>Lot ${r[3]}: ${d2(lot)} per piece (${d2(r[7])} ÷ ${n} pcs). Select a material in Material cost to compare.</p>`;
+  /* nominal stock: Unit Cost is per piece; offall: Unit Cost is per lb, so it is multiplied by the weight of the stock piece (volume × the density of the calculation) */
+  let tot=r[7], how=d2(r[7]);
+  if(r[0]===1){
+    const d=r[2], vol=r[1]==='BL'?d[0]*d[1]*d[2]:r[1]==='CL'?Math.PI/4*(d[0]*d[0]*d[1]+d[2]*d[2]*d[3]):Math.PI/4*d[0]*d[0]*d[1];
+    let rho; try{rho=cat==='BL'?readIn().D:(cat==='RD'?rRead():qRead()).rho}catch(e){rho=NaN}
+    if(!(rho>0))return '';
+    const lb=vol*16.387064e-6*rho*LB2KG; tot=r[7]*lb; how=`${d2(r[7])}/lb × ${nf(lb,1)} lb`;
+  }
+  const lot=tot/n;
+  if(!isFinite(base)||!(base>0))return `<p>Lot ${r[3]}: ${d2(lot)} per piece (${how} ÷ ${n} pcs). Select a material in Material cost to compare.</p>`;
   const diff=base-lot, pct=Math.abs(diff)/base*100;
-  return `<p><b>Lot ${r[3]}</b>: ${d2(lot)} per piece (${d2(r[7])} ÷ ${n} pcs) vs ${d2(base)} per piece with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pct,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pct,1)}%)</span>`}.</p>`;
+  return `<p><b>Lot ${r[3]}</b>: ${d2(lot)} per piece (${how} ÷ ${n} pcs) vs ${d2(base)} per piece with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pct,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pct,1)}%)</span>`}.</p>`;
 }
 function dgUpdate(cat,spec){
   const box=$('dg-'+cat+'-body'); if(!box)return;
@@ -682,7 +690,8 @@ function dgUpdate(cat,spec){
   const isCL=x=>x.r[1]==='CL'?0:1;
   best.forEach(a=>a.sort((x,y)=>(prefCL?isCL(x)-isCL(y):0)||x.v-y.v||y.r[5]-x.r[5]));
   { const t0=performance.now(); for(let k=0;k<2;k++){ const out=[]; for(const x of best[k]){ if(out.length>=3&&performance.now()-t0>1500)break; if(dgOk(cat,x.r))out.push(x); } best[k]=out; } }
-  const ucOf=r=>{const m=r[7]; return m==null?'':`<span class="uc" title="Unit Cost (column M of the report), per piece">$ ${nf(m,2)}<small>/pc</small></span>`};
+  const ucOf=r=>{const m=r[7]; if(!(m>0))return '';
+    return r[0]===1?`<span class="uc" title="Unit Cost (column M of the report): offall is priced per lb">$ ${nf(m,2)}<small>/lb</small></span>`:`<span class="uc" title="Unit Cost (column M of the report), per piece">$ ${nf(m,2)}<small>/pc</small></span>`};
   const qtyOf=r=>r[0]===1?Wu(r[5]*0.45359237,0):`${r[5]} pcs`;
   const list=(a,col)=>a.length?`<ol>${a.slice(0,3).map(({r,v,i})=>`<li draggable="true" data-i="${i}" title="Click to compare its cost · drag to the Feedstock box (or double-click) to use these dimensions" style="--c:var(${col})"><span class="lot"><span class="fill" title="All V'' together ÷ stock volume">${nf(Math.min(100,spec.vol/v*100),0)}%</span>${r[3]}</span><div class="row"><span class="meta">${r[1]==='CL'?'Collar · ':''}${dgSize(r)} ${LUl()} · ${qtyOf(r)}${r[6]?' · '+r[6]:''}</span>${ucOf(r)}</div></li>`).join('')}</ol>`
     :'<div class="none">No stock holds this V\'\'.</div>';
