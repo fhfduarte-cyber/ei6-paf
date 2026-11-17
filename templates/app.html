@@ -357,7 +357,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .pafgrid input:focus,.paftab input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
 .paftab{width:100%;border-collapse:separate;border-spacing:0 6px}
 .paftab th{text-align:left;font-size:12px;color:var(--fg-muted);font-weight:500;padding:0 4px}
-.paftab td{padding:0 4px}.paftab td:first-child{width:38%}.paftab td:nth-child(2){width:24%}
+.paftab td{padding:0 4px}.paftab td:first-child{width:32%}.paftab td:nth-child(2),.paftab td:nth-child(3){width:17%}
 .paftab td.act{width:90px;white-space:nowrap}
 .paftab button{all:unset;box-sizing:border-box;cursor:pointer;width:30px;height:30px;text-align:center;line-height:28px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--fg);font-size:16px}
 .paftab button:hover{border-color:var(--brand);color:var(--brand)}
@@ -590,9 +590,10 @@ const NF={};   // one Intl.NumberFormat per number of decimals (creating one per
 const nf=(n,d=0)=>(NF[d]||(NF[d]=new Intl.NumberFormat('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}))).format(n);
 /* ---- Sistema de unidades: o cálculo é sempre métrico (mm, kg, kg/m³); só a entrada e a exibição convertem. ---- */
 const UNIT={us:false}, KG_LB=0.45359237, DENS_F=27679.9047, UK={};
-const Lc=(mm,d=1)=>nf(UNIT.us?mm/25.4:mm,UNIT.us?Math.max(2,d):d);       // comprimento, só o número
+var XL3=false;   // true while the Excel export is generated: weights and measures with 3 decimals
+const Lc=(mm,d=1)=>nf(UNIT.us?mm/25.4:mm,XL3?3:UNIT.us?Math.max(2,d):d);       // comprimento, só o número
 const Lu=(mm,d=1)=>Lc(mm,d)+(UNIT.us?'"':' mm');
-const Wc=(kg,d=1)=>nf(UNIT.us?kg/KG_LB:kg,d);
+const Wc=(kg,d=1)=>nf(UNIT.us?kg/KG_LB:kg,XL3?3:d);
 const MUl=()=>UNIT.us?'lb':'kg', LUl=()=>UNIT.us?'in':'mm';
 const Wu=(kg,d=1)=>Wc(kg,d)+' '+MUl();
 const Vu=(m3,d=2)=>UNIT.us?nf(m3*61023.7441,d)+' in³':nf(m3*1e3,d)+' dm³';
@@ -2342,7 +2343,7 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
   for(let r=1;r<=3;r++){for(let c=1;c<=10;c++)ws.getCell(r,c).fill=fill(XC.brand)}
   put(1,X0,6,'Ei6  ·  PAF form',{color:XC.ink,b:true,sz:18,wrap:false});ws.getRow(1).height=30;
   put(1,7,X1,`PAF # ${paf}`,{color:XC.ink,b:true,sz:12,h:'right',wrap:false});
-  put(2,X0,6,`${meta.partNo||'-'}${meta.desc?'  —  '+meta.desc:''}${meta.grade?'  ·  Grade '+meta.grade:''}`,{color:XC.ink,b:true,sz:13,wrap:false});
+  put(2,X0,6,`${meta.partNo||'-'}${meta.desc?'  —  '+meta.desc:''}${meta.grade?'  ·  Requested grade '+meta.grade:''}${meta.quoted?'  ·  Quoted grade '+meta.quoted:''}`,{color:XC.ink,b:true,sz:13,wrap:false});
   put(2,7,X1,meta.cust?`Customer: ${meta.cust}`:'',{color:'FFCDDCF0',sz:10,h:'right',wrap:false});ws.getRow(2).height=24;
   put(3,X0,X1,`Raw material calculator  ·  ${tabName}${partName?'  ·  '+partName:''}  ·  Created ${meta.date||''}  ·  Units: ${UNIT.us?'US (in, lb)':'Metric (mm, kg)'}  ·  White cells in the blue panel can be changed to simulate the quote; everything else is locked.`,{color:'FFCDDCF0',sz:8.5,wrap:false});
   y=4;
@@ -2500,7 +2501,7 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
 render();
 if(UNIT.us){rRender();qRender()}
 /* =================== PAF: cover + one raw material calculator per part =================== */
-const PAF={id:null,ver:0,no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',grade:'',no:'',snap:null}],cur:-1,live:0,busy:false};
+const PAF={id:null,ver:0,no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',grade:'',quoted:'',no:'',snap:null}],cur:-1,live:0,busy:false};
 let S0=null;
 const jclone=o=>JSON.parse(JSON.stringify(o));
 (function(){const c=document.createElement('div');c.id='calc';const t=$('tabs');t.parentNode.insertBefore(c,t);
@@ -2545,7 +2546,7 @@ function pafNav(){
 function pafTitle(){
   const hd=$('parttitle'),i=PAF.cur; if(i<0){hd.hidden=true;return} hd.hidden=false;const p=PAF.parts[i];
   hd.innerHTML=`<div class="pt-l"><span class="pt-k">Part #</span><b class="num"></b><span class="pt-d"></span></div><div class="pt-r"></div>`;
-  hd.querySelector('b').textContent=p.no||('Part '+(i+1)); hd.querySelector('.pt-d').textContent=[p.desc,p.grade?'Grade '+p.grade:''].filter(Boolean).join(' · ');
+  hd.querySelector('b').textContent=p.no||('Part '+(i+1)); hd.querySelector('.pt-d').textContent=[p.desc,p.grade?'Requested '+p.grade:'',p.quoted?'Quoted '+p.quoted:''].filter(Boolean).join(' · ');
   hd.querySelector('.pt-r').textContent=[PAF.no?'PAF # '+PAF.no:'',PAF.cust].filter(Boolean).join(' · ');
 }
 function pafView(){
@@ -2565,9 +2566,9 @@ $('pafnav').addEventListener('keydown',e=>{const bs=[...$('pafnav').querySelecto
 const pafOk=p=>(p.no||'').trim()!==''&&(p.desc||'').trim()!=='';
 function pafParts(){
   const tb=document.querySelector('#pafcover tbody'); if(!tb)return; const P=PAF.parts, last=P.length-1;
-  tb.innerHTML=P.map((p,i)=>`<tr data-i="${i}"><td><input data-pf="desc" type="text" maxlength="80" value="" autocomplete="off" aria-label="Part description ${i+1}" placeholder="e.g. Seal ring"></td><td><input data-pf="grade" type="text" maxlength="60" value="" autocomplete="off" aria-label="Requested Grade ${i+1}" placeholder="e.g. ISO-63"></td><td><input data-pf="no" type="text" maxlength="40" value="" autocomplete="off" aria-label="Part # ${i+1}" placeholder="e.g. 12345-A"></td>
+  tb.innerHTML=P.map((p,i)=>`<tr data-i="${i}"><td><input data-pf="desc" type="text" maxlength="80" value="" autocomplete="off" aria-label="Part description ${i+1}" placeholder="e.g. Seal ring"></td><td><input data-pf="grade" type="text" maxlength="60" value="" autocomplete="off" aria-label="Requested Grade ${i+1}" placeholder="e.g. ISO-63"></td><td><input data-pf="quoted" type="text" maxlength="60" value="" autocomplete="off" aria-label="Quoted Grade ${i+1}" placeholder="e.g. ISO-63"></td><td><input data-pf="no" type="text" maxlength="40" value="" autocomplete="off" aria-label="Part # ${i+1}" placeholder="e.g. 12345-A"></td>
     <td class="act">${P.length>1?'<button type="button" class="del" title="Remove this part and its calculator" aria-label="Remove part">×</button> ':''}<button type="button" class="add" title="Add another part" aria-label="Add part" ${i===last&&pafOk(p)?'':'hidden'}>+</button></td></tr>`).join('');
-  tb.querySelectorAll('tr').forEach(tr=>{const p=P[+tr.dataset.i];tr.querySelector('[data-pf=desc]').value=p.desc;tr.querySelector('[data-pf=grade]').value=p.grade||'';tr.querySelector('[data-pf=no]').value=p.no});
+  tb.querySelectorAll('tr').forEach(tr=>{const p=P[+tr.dataset.i];tr.querySelector('[data-pf=desc]').value=p.desc;tr.querySelector('[data-pf=grade]').value=p.grade||'';tr.querySelector('[data-pf=quoted]').value=p.quoted||'';tr.querySelector('[data-pf=no]').value=p.no});
 }
 function pafCover(){
   const cv=$('pafcover'); if(!cv.dataset.built){
@@ -2580,7 +2581,7 @@ function pafCover(){
         <div class="field"><label for="paf-date">Created</label><input id="paf-date" data-pc="date" type="date"></div>
       </div></div></section>
       <section class="card"><header><h2>Parts</h2><span class="tag">Each row opens its own raw material calculator</span></header>
-      <div class="body"><table class="paftab"><thead><tr><th>Part description</th><th>Requested Grade</th><th>Part #</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="body"><table class="paftab"><thead><tr><th>Part description</th><th>Requested Grade</th><th>Quoted Grade</th><th>Part #</th><th></th></tr></thead><tbody></tbody></table>
       <p class="note" style="margin:8px 0 0">Fill in the description and the Part # to add another part with the “+”. The Part # is the title of the part’s calculator tab.</p></div></section>
       <section class="card"><header><h2>PAF form</h2><span class="tag">Excel · one tab per Part #</span></header>
       <div class="body pafact"><button type="button" class="pbtn go" id="paf-gen">Generate PAF form</button><button type="button" class="pbtn" id="paf-save">Save PAF</button><button type="button" class="pbtn" id="paf-open">Open PAF…</button><button type="button" class="pbtn" id="paf-new">New PAF</button><button type="button" class="pbtn sm" id="paf-exp" title="Download a backup file of this PAF">Export file</button><button type="button" class="pbtn sm" id="paf-imp" title="Load a PAF from a backup file">Import file</button><input type="file" id="paf-file" accept=".json,application/json" hidden>
@@ -2589,7 +2590,7 @@ function pafCover(){
       if(pc){PAF[pc]=t.value;return}
       if(pf){const tr=t.closest('tr'),i=+tr.dataset.i;PAF.parts[i][pf]=t.value;const b=tr.querySelector('.add');if(b)b.hidden=!(i===PAF.parts.length-1&&pafOk(PAF.parts[i]));pafNav()}});
     cv.addEventListener('click',e=>{const b=e.target.closest('.paftab button');if(!b)return;const i=+b.closest('tr').dataset.i;
-      if(b.classList.contains('add')){PAF.parts.push({desc:'',grade:'',no:'',snap:jclone(S0)})}
+      if(b.classList.contains('add')){PAF.parts.push({desc:'',grade:'',quoted:'',no:'',snap:jclone(S0)})}
       else if(b.classList.contains('del')){
         if(b.dataset.sure!=='1'){b.dataset.sure='1';b.textContent='Remove?';b.style.width='auto';b.style.padding='0 6px';setTimeout(()=>{if(b.isConnected){b.dataset.sure='';b.textContent='×';b.style.width='';b.style.padding=''}},3000);return}
         if(i===PAF.live){const n=i>0?i-1:1;PAF.live=n;snapPut(PAF.parts[n].snap||S0);PAF.parts.splice(i,1);PAF.live=n>i?n-1:n}
@@ -2606,6 +2607,16 @@ async function pafDownload(blob,name){
   if(RPT.dl){await RPT.dl.save({filename:name,data:blob})}
   else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
 }
+/* Demanded part dimension (3 decimals) of the part loaded in the calculator, for the Excel cover. */
+function pafDem(tab,key){
+  const was=XL3; try{
+    XL3=true;
+    if(tab==='blocks'){const I=readIn(),P=key==='b1'?I.P2:I.P; return P.map(x=>Lc(x,3)).join(' × ')+' '+LUl()}
+    const I=tab==='rods'?rRead():qRead();
+    return (I.mode==='tube'&&I.id>0?`ø${Lc(I.od,3)} / ø${Lc(I.id,3)}`:`ø${Lc(I.od,3)}`)+` × ${Lc(I.len,3)} ${LUl()}`;
+  }catch(e){return ''}finally{XL3=was}
+}
+const pafFileX=()=>{const c=t=>String(t||'').replace(/[\\/:*?"<>|]+/g,'_').replace(/\s+/g,' ').trim(); const n=c(PAF.no), d=c(PAF.desc); return (n&&d?n+' - '+d:n||d||'PAF')+'.xlsx'};
 const pafFile=(ext)=>`PAF # ${(PAF.no||'').replace(/[\\/:*?"<>|]+/g,'_').trim()}.${ext}`;
 
 /* ---- Excel: cover + one sheet per Part # (two for a combined order) ---- */
@@ -2614,7 +2625,7 @@ async function pafGenerate(){
   PAF.busy=true; ['paf-gen','paf-save','paf-open','paf-new','paf-exp','paf-imp'].forEach(i=>$(i).disabled=true); pafMsg('Generating the Excel file...',true);
   const keep=PAF.live, saved=snapTake(); PAF.parts[PAF.live].snap=saved;
   try{
-    await rptLib();
+    XL3=true; await rptLib();
     const wb=new ExcelJS.Workbook(); wb.creator='Ei6 PAF tool'; wb.created=new Date(); wb.calcProperties={fullCalcOnLoad:true};
     const cover=wb.addWorksheet('Cover',{views:[{showGridLines:false}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
     const used=new Set(['Cover']), rows=[];
@@ -2624,39 +2635,40 @@ async function pafGenerate(){
       const tab=TABS.find(k=>!$('tab-'+k).hidden)||'blocks';
       const keys=tab==='blocks'?(document.querySelector('.mfin[data-k="b0"]')?['b0','b1']:['b']):tab==='rods'?['r']:['q'];
       for(let j=0;j<keys.length;j++){
-        const nm=pafLabel(i)+(keys.length>1?(j?' II':' I'):''), sheet=uniq(nm);
-        const r=await pafAddSheet(wb,tab,keys[j],{paf:PAF.no,cust:PAF.cust,date:PAF.date,partNo:nm,desc:p.desc,grade:p.grade||''},sheet);
-        rows.push({...r,no:nm,desc:p.desc});
+        const nm=pafLabel(i)+(keys.length>1?(j?' II':' I'):''), sheet=uniq(nm), dim=pafDem(tab,keys[j]);
+        const r=await pafAddSheet(wb,tab,keys[j],{paf:PAF.no,cust:PAF.cust,date:PAF.date,partNo:nm,desc:p.desc,grade:p.grade||'',quoted:p.quoted||''},sheet);
+        rows.push({...r,no:nm,desc:p.desc,dim,grade:p.grade||'',quoted:p.quoted||''});
       }
     }
     /* cover sheet */
     const B='FF16407A', W='FFFFFFFF', S='FFE3ECF8', L='FFD9E0EA', T='FF16212F', M='FF5B6B80';
-    [2,18,34,16,18,14,16,16,2].forEach((w,i)=>cover.getColumn(i+1).width=w);
+    [2,18,32,28,16,16,16,12,18,14,2].forEach((w,i)=>cover.getColumn(i+1).width=w);
     const f=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});
-    for(let r=1;r<=4;r++)for(let c=1;c<=9;c++)cover.getCell(r,c).fill=f(B);
+    for(let r=1;r<=4;r++)for(let c=1;c<=11;c++)cover.getCell(r,c).fill=f(B);
     const cp=(r,c1,c2,v,o={})=>{if(c2>c1)cover.mergeCells(r,c1,r,c2);const ce=cover.getCell(r,c1);ce.value=v;ce.font={name:'Arial',size:o.sz||10,bold:!!o.b,color:{argb:o.color||T}};ce.alignment={vertical:'middle',horizontal:o.h||'left',wrapText:o.wrap!==false};
       for(let c=c1;c<=c2;c++){const x=cover.getCell(r,c);if(o.fill)x.fill=f(o.fill);if(o.line)x.border={bottom:{style:'thin',color:{argb:L}}}}if(o.nf)ce.numFmt=o.nf;return ce};
     cp(1,2,5,'Ei6  ·  PAF form',{color:W,b:true,sz:20,wrap:false});cover.getRow(1).height=34;
     cp(2,2,5,`PAF # ${PAF.no}`,{color:W,b:true,sz:16,wrap:false});cover.getRow(2).height=26;
-    cp(3,2,8,`Customer: ${PAF.cust||'-'}${PAF.desc?'  ·  '+PAF.desc:''}`,{color:'FFCDDCF0',sz:11,wrap:false});
-    cp(4,2,8,`Created ${PAF.date}  ·  Units: ${UNIT.us?'US (in, lb)':'Metric (mm, kg)'}  ·  Price basis: EXW Parma-OH  ·  ${rows.length} sheet${rows.length>1?'s':''}`,{color:'FFCDDCF0',sz:9,wrap:false});
-    let y=6; const hd=['Part #','Description','Calculator','Quoted qty','Quoted price / pc','Final margin'];
-    hd.forEach((h,i)=>cp(y,2+i,2+i,h,{fill:B,color:W,b:true,h:i>2?'right':'left',wrap:false}));cover.getRow(y).height=22;y++;
+    cp(3,2,10,`Customer: ${PAF.cust||'-'}${PAF.desc?'  ·  '+PAF.desc:''}`,{color:'FFCDDCF0',sz:11,wrap:false});
+    cp(4,2,10,`Created ${PAF.date}  ·  Units: ${UNIT.us?'US (in, lb)':'Metric (mm, kg)'}  ·  Price basis: EXW Parma-OH  ·  ${rows.length} sheet${rows.length>1?'s':''}`,{color:'FFCDDCF0',sz:9,wrap:false});
+    let y=6; const hd=['Part #','Description','Demanded part dimension','Requested grade','Quoted grade','Calculator','Quoted qty','Quoted price / pc','Final margin'];
+    hd.forEach((h,i)=>cp(y,2+i,2+i,h,{fill:B,color:W,b:true,h:i>5?'right':'left',wrap:false}));cover.getRow(y).height=22;y++;
     rows.forEach((r,i)=>{const q=`'${r.sheet}'!`;
-      cp(y,2,2,r.no,{b:true,line:true});cp(y,3,3,r.desc||'',{line:true});cp(y,4,4,r.tab+(r.part?' · '+r.part:''),{line:true,color:M});
-      cp(y,5,5,{formula:`IF(ISNUMBER(${q}${r.qq}),${q}${r.qq},"")`},{line:true,h:'right',nf:'0" pcs"'});
-      cp(y,6,6,{formula:`IF(ISNUMBER(${q}${r.price}),${q}${r.price},"")`},{line:true,h:'right',b:true,nf:'"$" #,##0.00'});
-      cp(y,7,7,{formula:`IF(ISNUMBER(${q}${r.margin}),${q}${r.margin},"")`},{line:true,h:'right',nf:'0.0%'});
+      cp(y,2,2,r.no,{b:true,line:true});cp(y,3,3,r.desc||'',{line:true});cp(y,4,4,r.dim||'',{line:true});cp(y,5,5,r.grade||'',{line:true});cp(y,6,6,r.quoted||'',{line:true});
+      cp(y,7,7,r.tab+(r.part?' · '+r.part:''),{line:true,color:M});
+      cp(y,8,8,{formula:`IF(ISNUMBER(${q}${r.qq}),${q}${r.qq},"")`},{line:true,h:'right',nf:'0" pcs"'});
+      cp(y,9,9,{formula:`IF(ISNUMBER(${q}${r.price}),${q}${r.price},"")`},{line:true,h:'right',b:true,nf:'"$" #,##0.00'});
+      cp(y,10,10,{formula:`IF(ISNUMBER(${q}${r.margin}),${q}${r.margin},"")`},{line:true,h:'right',nf:'0.0%'});
       cover.getRow(y).height=20; cover.getCell(y,2).value={text:r.no,hyperlink:`#'${r.sheet}'!A1`};cover.getCell(y,2).font={name:'Arial',size:10,bold:true,color:{argb:B},underline:true};y++});
-    y++;cp(y,2,8,'The prices on this page follow the white cells of each Part # sheet (quote simulation); change them there. Each sheet also holds the cutting plan, Offall memorial, material and machining cost.',{color:M,sz:9});cover.getRow(y).height=28;
+    y++;cp(y,2,10,'The prices on this page follow the white cells of each Part # sheet (quote simulation); change them there. Each sheet also holds the cutting plan, Offall memorial, material and machining cost.',{color:M,sz:9});cover.getRow(y).height=28;
     const buf=await wb.xlsx.writeBuffer();
-    snapPut(saved); PAF.live=keep;
+    XL3=false; snapPut(saved); PAF.live=keep;
     PAF.cur=-1; pafView();
     pafMsg('Waiting for you to confirm the download...',true);
-    await pafDownload(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),pafFile('xlsx'));
+    await pafDownload(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),pafFileX());
     pafMsg('PAF form generated.',true);
   }catch(err){
-    try{snapPut(saved);PAF.live=keep;PAF.cur=-1;pafView()}catch(_){}
+    XL3=false; try{snapPut(saved);PAF.live=keep;PAF.cur=-1;pafView()}catch(_){}
     const c=err&&err.code; pafMsg(c==='declined'?'Download cancelled. Click Generate PAF form to try again.':c==='rate_limited'?'Another download prompt is open. Wait a moment and try again.':(err&&err.message)||'Could not generate the Excel file.');
   }finally{PAF.busy=false;['paf-gen','paf-save','paf-open','paf-new','paf-exp','paf-imp'].forEach(i=>{const e=$(i);if(e)e.disabled=false})}
 }
@@ -2669,7 +2681,7 @@ async function api(method,url,body){
   if(!r.ok){const e=new Error(d.error||'Request failed');e.status=r.status;throw e}
   return d;
 }
-const pafBody=()=>({number:PAF.no,customer:PAF.cust,description:PAF.desc,created_on:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,grade:p.grade||'',no:p.no,snap:p.snap||S0}))});
+const pafBody=()=>({number:PAF.no,customer:PAF.cust,description:PAF.desc,created_on:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,grade:p.grade||'',quoted:p.quoted||'',no:p.no,snap:p.snap||S0}))});
 async function pafSaveDb(){
   if(PAF.busy)return;
   if(!PAF.no.trim()){pafMsg('Enter the PAF # to continue.');$('paf-no').focus();return}
@@ -2682,7 +2694,7 @@ async function pafSaveDb(){
 function pafNew(){
   if(PAF.busy)return; if(PAF.id||PAF.no||PAF.parts.some(p=>p.desc||p.no)){if($('paf-new').dataset.sure!=='1'){$('paf-new').dataset.sure='1';$('paf-new').textContent='Discard and start new?';setTimeout(()=>{const b=$('paf-new');if(b){b.dataset.sure='';b.textContent='New PAF'}},3500);return}}
   $('paf-new').dataset.sure='';$('paf-new').textContent='New PAF';
-  Object.assign(PAF,{id:null,ver:0,no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',grade:'',no:'',snap:null}],cur:-1,live:0});
+  Object.assign(PAF,{id:null,ver:0,no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',grade:'',quoted:'',no:'',snap:null}],cur:-1,live:0});
   snapPut(S0);pafView();pafMsg('New PAF.',true);
 }
 async function pafLoad(id){
@@ -2691,7 +2703,7 @@ async function pafLoad(id){
     const d=await api('GET','/api/pafs/'+id), parts=(d.payload&&d.payload.parts)||[];
     if(!Array.isArray(parts)||!parts.length)throw new Error('This PAF has no parts.');
     Object.assign(PAF,{id:d.id,ver:d.version,no:String(d.number),cust:String(d.customer||''),desc:String((d.payload&&d.payload.description)||'').slice(0,120),date:String(d.created_on),
-      parts:parts.slice(0,50).map(p=>({desc:String(p.desc||''),grade:String(p.grade||'').slice(0,60),no:String(p.no||''),snap:p.snap||null})),live:0,cur:-1});
+      parts:parts.slice(0,50).map(p=>({desc:String(p.desc||''),grade:String(p.grade||'').slice(0,60),quoted:String(p.quoted||'').slice(0,60),no:String(p.no||''),snap:p.snap||null})),live:0,cur:-1});
     snapPut(PAF.parts[0].snap||S0);pafView();pafMsg('Opened PAF # '+PAF.no+' · version '+d.version+'.',true);
   }catch(e){pafMsg(e.message)}finally{PAF.busy=false}
 }
@@ -2716,7 +2728,7 @@ async function pafList(){
 /* ---- backup file (export/import of the whole PAF, all parts and their calculations) ---- */
 async function pafExport(){
   if(PAF.busy)return; PAF.parts[PAF.live].snap=snapTake();
-  const data={app:'ei6-paf',v:1,no:PAF.no,cust:PAF.cust,desc:PAF.desc,date:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,grade:p.grade||'',no:p.no,snap:p.snap||S0}))};
+  const data={app:'ei6-paf',v:1,no:PAF.no,cust:PAF.cust,desc:PAF.desc,date:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,grade:p.grade||'',quoted:p.quoted||'',no:p.no,snap:p.snap||S0}))};
   try{pafMsg('Saving...',true);await pafDownload(new Blob([JSON.stringify(data)],{type:'application/json'}),pafFile('json').replace(/\.json$/,'.ei6paf.json'));pafMsg('PAF file saved.',true)}
   catch(err){pafMsg(err&&err.code==='declined'?'Download cancelled.':(err&&err.message)||'Could not save the file.')}
 }
@@ -2725,7 +2737,7 @@ async function pafOpen(file){
     const d=JSON.parse(await file.text());
     if(!d||d.app!=='ei6-paf'||!Array.isArray(d.parts)||!d.parts.length)throw new Error('This is not a PAF file saved by this tool.');
     PAF.no=String(d.no||'');PAF.cust=String(d.cust||'');PAF.desc=String(d.desc||'').slice(0,120);PAF.date=String(d.date||PAF.date);
-    PAF.parts=d.parts.slice(0,50).map(p=>({desc:String(p.desc||''),grade:String(p.grade||'').slice(0,60),no:String(p.no||''),snap:p.snap||null}));
+    PAF.parts=d.parts.slice(0,50).map(p=>({desc:String(p.desc||''),grade:String(p.grade||'').slice(0,60),quoted:String(p.quoted||'').slice(0,60),no:String(p.no||''),snap:p.snap||null}));
     PAF.live=0;snapPut(PAF.parts[0].snap||S0);PAF.cur=-1;
     $('pafcover').dataset.built&&pafView();pafMsg('PAF file opened.',true);
   }catch(err){pafMsg((err&&err.message)||'Could not open the file.')}
