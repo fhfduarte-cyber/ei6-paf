@@ -1140,12 +1140,13 @@ function render(){
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('BL',null);return}
   if(state.sel>=r.opts.length)state.sel=0;
   const opt=r.opts[state.sel], I=r.I, fl=opt.fl, dual=!!r.second, cdual=dual&&!r.mix;
-  const A=r.agg, QT=A.Q, multi=A.N>1, grpO=A.N>12;
+  const A=r.agg, QT=A.Q, multi=A.N>1, grpO=true;
   const optE=e=>e.r.opts[Math.min(state.sel,e.r.opts.length-1)];
   const flE=e=>optE(e).fl;
   const volE=e=>{const o=optE(e);return o.envs.reduce((t,v)=>t+v.size[0]*v.size[1]*v.size[2]/1e9,0)};
   const T={kg:0,loss:0,env:0,pcs:0,vn:0}; A.list.forEach(e=>{const o=optE(e);T.kg+=e.n*o.fl.reduce((t,x)=>t+x.kg,0);T.loss+=e.n*o.floss;T.env+=e.n*volE(e);T.pcs+=e.n*e.r.volPieces;T.vn+=e.n*e.r.volN});
   const bItems=[]; A.list.forEach((e,ei)=>{const f=flE(e); if(!f.some(o=>!o.empty))return; if(grpO)bItems.push({fl:f,m:e.n,f:-1,lab:bItems.length+1}); else for(let k=0;k<e.n;k++)bItems.push({fl:f,m:1,f:bItems.length,lab:bItems.length+1})});
+  {const mb=mergeSame(bItems,bi=>bi.fl.map(o=>o.empty?'e':o.size.map(sg3).join(',')+'|'+sg3(o.kg)+'|'+sg3(o.dev)).join(';')); bItems.length=0; mb.forEach((b,k)=>{b.lab=k+1;bItems.push(b)})}
   dgUpdate('BL',{list:opt.envs.map(e=>({label:dn(e.id)+' · '+Lc(e.size[0],0)+' × '+Lc(e.size[1],0)+' × '+Lc(e.size[2],0),mm:e.size}))});
   const perm=r.perm.map(i=>AX[i]).join(' ');
   const totKg=T.kg, lossKg=T.loss;
@@ -1257,14 +1258,14 @@ function render(){
      h.onclick=tg;h.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tg()}}}}
   // offalls
   $('offs').innerHTML=bItems.length?bItems.map(bi=>bi.fl.map((o,i)=>o.empty?'':`
-    <article class="off ${state.hi===i&&bi.f===FSEL.b?'hi':''}" data-i="${i}" data-f="${bi.f}" style="--c:var(${COLORS[i%COLORS.length]})">
+    <article class="off ${state.hi===i&&(bi.f<0||bi.f===FSEL.b)?'hi':''}" data-i="${i}" data-f="${bi.f}" style="--c:var(${COLORS[i%COLORS.length]})">
       <h3><span>${multi?'Feedstock '+bi.lab+(bi.m>1?' (× '+bi.m+')':'')+' · ':''}Offall ${i+1}</span><span class="pill ${classOf(o.dev)}">${pct(o.dev)}</span></h3>
       <dl class="dl num"><dt>W${i+1}</dt><dd>${Lu(o.size[0],1)}</dd><dt>H${i+1}</dt><dd>${Lu(o.size[1],1)}</dd><dt>L${i+1}</dt><dd>${Lu(o.size[2],1)}</dd><dt>Volume</dt><dd>${Vu(o.vol)}</dd></dl>
       <div class="weight num"><small>P = V × D${bi.m>1?' · each':''}</small><span>${Wu(o.kg,1)}</span></div>
     </article>`).join('')).join(''):'<div class="note">This cut leaves no material.</div>';
   if(multi)$('offs').insertAdjacentHTML('beforeend',`<p class="note" style="flex-basis:100%;margin:8px 0 0">${QT} pcs need <b>${A.N} Feedstock pieces</b>: ${A.nFull} full block${A.nFull>1?'s':''} with ${A.mx} pcs${A.rem?` + 1 last block with ${A.rem} pcs`:''}. Each Feedstock piece has its own Offalls, listed in the Devaluation table. The orientation and cutting-sequence tables describe a full block. Total Offall ${Wu(totKg,1)}.</p>`);
   document.querySelectorAll('.off,#main tbody tr[data-i]').forEach(el=>{
-    if(el.dataset.f!==undefined&&+el.dataset.f!==FSEL.b)return; el.onmouseenter=()=>{state.hi=+el.dataset.i;paint()};el.onmouseleave=()=>{state.hi=-1;paint()};
+    if(el.dataset.f!==undefined&&+el.dataset.f>=0&&+el.dataset.f!==FSEL.b)return; el.onmouseenter=()=>{state.hi=+el.dataset.i;paint()};el.onmouseleave=()=>{state.hi=-1;paint()};
   });
   paint(); fsBind('b',()=>{state.hi=-1;render()});
   const stage=$('stage');
@@ -1279,7 +1280,7 @@ function paint(mainOnly){
   const fe=r.agg?fsRes(r.agg,FSEL.b).r:r, fo=fe.opts[Math.min(state.sel,fe.opts.length-1)];
   const cv=$('cv'); if(cv)draw(cv,sceneOf(fe,fo,state.hi),state.view,{labels:true});
   if(mainOnly)return;
-  document.querySelectorAll('.off').forEach(el=>el.classList.toggle('hi',+el.dataset.i===state.hi&&(el.dataset.f===undefined||+el.dataset.f===FSEL.b)));
+  document.querySelectorAll('.off').forEach(el=>el.classList.toggle('hi',+el.dataset.i===state.hi&&(el.dataset.f===undefined||+el.dataset.f<0||+el.dataset.f===FSEL.b)));
   document.querySelectorAll('#opts .opt canvas').forEach((c,i)=>draw(c,sceneOf(r,r.opts[i],-1),{yaw:-0.62,pitch:0.42},{zoom:1.3}));
 }
 document.querySelectorAll('#tab-blocks .side input').forEach(i=>i.addEventListener('input',()=>{state.sel=0;render()}));
@@ -1547,6 +1548,10 @@ function drawRod(cv,sc,view,o={}){
   });
 }
 /* ---- Feedstock piece selector for the 3D drawing: piece k -> the solved entry (full rods first, then the last one) ---- */
+/* Identical Offall cards (same sizes and weight) of several Feedstock pieces are shown once, with "× n". */
+function mergeSame(items,sig){const out=[],idx=new Map();
+  items.forEach(it=>{const k=sig(it);if(idx.has(k)){idx.get(k).m+=it.m}else{const c={...it};idx.set(k,c);out.push(c)}});return out}
+const sg3=x=>(+x).toFixed(3);
 var FSEL={b:0,r:0,q:0};
 function fsRes(A,k){let c=0;for(let i=0;i<A.list.length;i++){c+=A.list[i].n;if(k<c)return {r:A.list[i].r,c:i+1}}const e=A.list[A.list.length-1];return {r:e.r,c:A.list.length}}
 function fsBar(key,N){
@@ -1598,7 +1603,8 @@ function rRender(){
     ?`<dt>Small OD</dt><dd>${Lu(off.d1,1)}</dd><dt>L small OD</dt><dd>${Lu(off.l1,1)}</dd><dt>Large OD</dt><dd>${Lu(off.D2,1)}</dd><dt>L large OD</dt><dd>${Lu(off.l2,1)}</dd>${off.core?`<dt>Tube core</dt><dd>ø${Lc(off.core.d,1)} × ${Lu(off.core.l,1)}</dd>`:''}`
     :`<dt>OD</dt><dd>${Lu(off.D,1)}</dd><dt>L</dt><dd>${Lu(off.L,1)}</dd>`;
   const offKind=!off?'':off.type==='collar'?'Collar':'Rod';
-  const grpO=A.N>12, offItems=[]; A.list.forEach((e,ei)=>{ if(!e.r.off)return; if(grpO)offItems.push({o:e.r.off,m:e.n,c:ei+1}); else for(let k=0;k<e.n;k++)offItems.push({o:e.r.off,m:1,c:ei+1}) });
+  const grpO=true, offItems=[]; A.list.forEach((e,ei)=>{ if(!e.r.off)return; if(grpO)offItems.push({o:e.r.off,m:e.n,c:ei+1}); else for(let k=0;k<e.n;k++)offItems.push({o:e.r.off,m:1,c:ei+1}) });
+  {const mo=mergeSame(offItems,it=>[it.o.type,it.o.kg,it.o.vol,it.o.dev].map(sg3).join('|')+'|'+JSON.stringify([it.o.D,it.o.L,it.o.d1,it.o.l1,it.o.D2,it.o.l2].map(x=>x==null?0:sg3(x)))); offItems.length=0; mo.forEach(x=>offItems.push(x))}
   const oDims=o=>o.type==='collar'
     ?`<dt>Small OD</dt><dd>${Lu(o.d1,1)}</dd><dt>L small OD</dt><dd>${Lu(o.l1,1)}</dd><dt>Large OD</dt><dd>${Lu(o.D2,1)}</dd><dt>L large OD</dt><dd>${Lu(o.l2,1)}</dd>${o.core?`<dt>Tube core</dt><dd>ø${Lc(o.core.d,1)} × ${Lu(o.core.l,1)}</dd>`:''}`
     :`<dt>OD</dt><dd>${Lu(o.D,1)}</dd><dt>L</dt><dd>${Lu(o.L,1)}</dd>`;
@@ -1795,13 +1801,14 @@ function qRender(){
   qSidebar(); const r=qSolve(); state.qres=r;
   const main=$('qmain');
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('RN',null);return}
-  const I=r.I, offs=r.offs, label=r.tube?'Tube':'Round', A=r.agg, QT=A.Q, multi=A.N>1, grpO=A.N>12;
+  const I=r.I, offs=r.offs, label=r.tube?'Tube':'Round', A=r.agg, QT=A.Q, multi=A.N>1, grpO=true;
   dgUpdate('RN',{od:I.od,L:r.used});
   const kindOf={round:'Round',collar:'Collar',ring:'Ring',core:'Core'};
   const dimsOf=o=>o.type==='collar'?`ø${Lc(o.d1,1)} × ${Lc(o.l1,1)} + ø${Lc(o.D2,1)} × ${Lc(o.l2,1)}`:o.type==='ring'?`OD ${Lc(o.Do,1)} · ID ${Lc(o.Di,1)} × ${Lc(o.L,1)}`:`ø${Lc(o.D,1)} × ${Lc(o.L,1)}`;
   const devOk=A.devOk, naMsg=A.naMsg;
   const ringKgX=A.ringKg, loss=A.loss, offKg=A.offKg;
   const fItems=[]; A.list.forEach((e,ei)=>{ if(!e.r.offs.length)return; if(grpO)fItems.push({offs:e.r.offs,m:e.n,f:fItems.length+1}); else for(let k=0;k<e.n;k++)fItems.push({offs:e.r.offs,m:1,f:fItems.length+1}) });
+  {const mf=mergeSame(fItems,fi=>fi.offs.map(o=>[o.type,o.kg,o.vol,o.dev,o.D,o.L,o.d1,o.l1,o.D2,o.l2,o.Do,o.Di].map(x=>x==null?'':sg3(x)).join(',')).join(';')); fItems.length=0; mf.forEach((x,k)=>{x.f=k+1;fItems.push(x)})}
   const wP=r.pieceKg*QT, calcKg=wP+loss;
   const lg=(col,txt,dash)=>`<span><i class="${dash?'dash':''}" style="border-color:var(${col});background:color-mix(in srgb,var(${col}) 35%,transparent)"></i>${txt}</span>`;
   const pctn=v=>`<span class="pctnote">(${nf(calcKg?v/calcKg*100:0,1)}%)</span>`;
