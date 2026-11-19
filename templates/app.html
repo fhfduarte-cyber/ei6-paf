@@ -255,6 +255,14 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .dg li .lot{font-family:var(--font-num);font-size:12px;font-weight:500;word-break:break-word;display:block}
 .dg li .meta{font-size:11px;color:var(--fg-muted);display:block;margin-top:2px}
 .dg li .fill{float:right;font-family:var(--font-num);font-size:11px;color:var(--good);margin-left:6px}
+.dg .dgsec{margin:8px 0 0;border-top:1px solid var(--line);padding-top:6px}
+.dg .dgsec>summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-muted);list-style:none;padding:2px 0}
+.dg .dgsec>summary::-webkit-details-marker{display:none}
+.dg .dgsec>summary::before{content:"";width:6px;height:6px;border-right:2px solid var(--fg-muted);border-bottom:2px solid var(--fg-muted);transform:rotate(-45deg);transition:transform .15s;margin-right:6px;flex:0 0 auto}
+.dg .dgsec[open]>summary::before{transform:rotate(45deg)}
+.dg .dgsec>summary span{flex:1}.dg .dgsec>summary .cnt{font-family:var(--font-num);font-weight:500;text-transform:none;letter-spacing:0;color:var(--fg)}
+.dg ol.dglist{margin-top:6px;overflow-y:auto;max-height:290px;padding-right:2px;scrollbar-gutter:stable}
+.dg li .dgshort{display:block;margin-top:3px;font-size:11px;color:var(--bad,#b3261e)}
 .dg .none{font-size:12px;color:var(--fg-muted);padding:4px 0}
 
 .dg>header{cursor:pointer;user-select:none}
@@ -663,8 +671,8 @@ function dgOk(cat,r){
       const f=()=>Object.assign(o(),ov); if(isR)rRead=f; else qRead=f;
       try{res=isR?rSolve():qSolve()}finally{if(isR)rRead=o;else qRead=o}
     }
-  }catch(e){return true}finally{MIXON=saveMix}
-  return !res.error&&(!res.agg||res.agg.N===1);   // a card is offered only when ONE Feedstock piece holds the whole order
+  }catch(e){return 1}finally{MIXON=saveMix}
+  return res.error?0:(res.agg?res.agg.N:1);   // number of Feedstock pieces of this lot the whole order needs (0: not even 1 piece works)
 }
 /* Price per kg of a stock lot: nominal Unit Cost is per piece (÷ weight of the piece), offall Unit Cost is per lb. */
 function lotPerKg(cat,r){
@@ -756,12 +764,12 @@ function dgUpdate(cat,spec){
   const tag=$('dg-'+cat+'-tag'); if(tag)tag.textContent=DG_CAT[cat].split(' ')[1].replace(/[()]/g,'');
   if(!spec){box.innerHTML='<div class="none">Fill in the demanded part(s) to search the stock.</div>';return}
   if(cat==='BL'){
-    const ss=spec.list.map(e=>[...e.mm].map(x=>x/25.4).sort((p,q)=>p-q));
-    spec={ss,rows:spec.list.map(e=>({lab:spec.list.length>1?e.label.split(' · ')[0]:'',dim:Lc(e.mm[0],0)+' × '+Lc(e.mm[1],0)+' × '+Lc(e.mm[2],0)}))};
-    spec.vol=ss.reduce((t,v)=>t+v[0]*v[1]*v[2],0);
+    const ss=spec.pcs.map(e=>[...e.mm].map(x=>x/25.4).sort((p,q)=>p-q));
+    spec={ss,rows:spec.pcs.map(e=>({lab:e.lab,dim:Lc(e.mm[0],0)+' × '+Lc(e.mm[1],0)+' × '+Lc(e.mm[2],0),q:e.q})),
+      vol:spec.pcs.reduce((t,e,k)=>t+e.q*ss[k][0]*ss[k][1]*ss[k][2],0)};
   }else{
-    spec={od:spec.od/25.4,L:spec.L/25.4,txt:`ø${Lc(spec.od,0)} × ${Lc(spec.L,0)} ${LUl()}`};
-    spec.vol=Math.PI/4*spec.od*spec.od*spec.L;
+    spec={od:spec.od/25.4,L:spec.L/25.4,Q:spec.Q,txt:`ø${Lc(spec.od,0)} × ${Lc(spec.L,0)} ${LUl()} × ${spec.Q} pcs`};
+    spec.vol=Math.PI/4*spec.od*spec.od*spec.L*spec.Q;
   }
   const fams=[...new Set(DIGGER_DATA.filter(r=>r[1]===cat||(r[1]==='CL'&&r[4].toUpperCase().startsWith(cat))).map(r=>r[4]))].sort();
   if(DG.fam[cat]&&!fams.includes(DG.fam[cat]))DG.fam[cat]='';
@@ -773,23 +781,46 @@ function dgUpdate(cat,spec){
   const prefCL=cat!=='BL'&&!!$((cat==='RD'?'r':'q')+'Collar').checked;   // Collar ticked in the Feedstock: collars come first
   const isCL=x=>x.r[1]==='CL'?0:1;
   best.forEach(a=>a.sort((x,y)=>(prefCL?isCL(x)-isCL(y):0)||x.v-y.v||y.r[5]-x.r[5]));
-  { const t0=performance.now(); for(let k=0;k<2;k++){ const out=[]; for(const x of best[k]){ if(out.length>=3&&performance.now()-t0>1500)break; if(dgOk(cat,x.r))out.push(x); } best[k]=out; } }
   const ucOf=r=>{const m=r[7]; if(!(m>0))return '';
     return r[0]===1?`<span class="uc" title="Unit Cost (column M of the report): offall is priced per lb">$ ${nf(m,2)}<small>/lb</small></span>`:`<span class="uc" title="Unit Cost (column M of the report), per piece">$ ${nf(m,2)}<small>/pc</small></span>`};
   const qtyOf=r=>r[0]===1?Wu(r[5]*0.45359237,0):`${r[5]} pcs`;
-  const list=(a,col)=>a.length?`<ol>${a.slice(0,3).map(({r,v,i})=>`<li draggable="true" data-i="${i}" title="Click to compare its cost · drag to the Feedstock box (or double-click) to use these dimensions" style="--c:var(${col})"><span class="lot"><span class="fill" title="All V'' together ÷ stock volume">${nf(Math.min(100,spec.vol/v*100),0)}%</span>${r[3]}</span><div class="row"><span class="meta">${r[1]==='CL'?'Collar · ':''}${dgSize(r)} ${LUl()} · ${qtyOf(r)}${r[6]?' · '+r[6]:''}</span>${ucOf(r)}</div></li>`).join('')}</ol>`
-    :'<div class="none">No stock holds this V\'\'.</div>';
+  const availOf=r=>r[0]===1?1:r[5];
+  const shortOf=(r,N)=>N>availOf(r)?`<span class="dgshort">Available (${availOf(r)} pc${availOf(r)>1?'s':''}) is less than demanded (${N} pcs)</span>`:'';
+  const liOf=({r,v,i,N},col)=>`<li draggable="true" data-i="${i}" title="Click to compare its cost · drag to the Feedstock box (or double-click) to use these dimensions" style="--c:var(${col})"><span class="lot"><span class="fill" title="Whole order ÷ volume of the Feedstock pieces it needs">${nf(Math.min(100,spec.vol/(v*(N||1))*100),0)}%</span>${r[3]}</span><div class="row"><span class="meta">${r[1]==='CL'?'Collar · ':''}${dgSize(r)} ${LUl()} · ${qtyOf(r)}${r[6]?' · '+r[6]:''}</span>${ucOf(r)}</div>${N?shortOf(r,N):''}</li>`;
+  DG.open=DG.open||{};
+  const sec=(k,title,a,col)=>`<details class="dgsec" data-k="${k}" ${DG.open[cat+k]?'open':''}><summary><span>${title}</span><b class="cnt">${a.length} fit</b></summary>${a.length?`<ol class="dglist" data-k="${k}">${a.map(x=>liOf(x,col)).join('')}</ol>`:'<div class="none">No stock can make even 1 piece.</div>'}</details>`;
   box.innerHTML=`<div class="dgrow"><label for="dg-${cat}-fam">Material</label><select id="dg-${cat}-fam"><option value="">All</option>${fams.map(f=>`<option ${f===DG.fam[cat]?'selected':''}>${f}</option>`).join('')}</select></div>
-    <div class="dgv">Searching ${DG_CAT[cat]} for V'' :${spec.rows?`<ul class="dgvl">${spec.rows.map((x,k)=>`<li>${x.lab?x.lab+': ':''}${x.dim}${k<spec.rows.length-1?'':' '+LUl()}</li>`).join('')}</ul>`:` <b>${spec.txt}</b>`}</div>
-    <div class="subhead">Nominal · ${best[0].length} fit</div>${list(best[0],'--nominal')}
-    <div class="subhead">Offall · ${best[1].length} fit</div>${list(best[1],'--off1')}
+    <div class="dgv">Stock that can make at least 1 piece of ${DG_CAT[cat]}${spec.rows?`<ul class="dgvl">${spec.rows.map((x,k)=>`<li>${x.lab?x.lab+': ':''}${x.dim} ${LUl()} × ${x.q} pcs</li>`).join('')}</ul>`:` <b>${spec.txt}</b>`}</div>
+    ${sec('N','Nominal',best[0],'--nominal')}${sec('O','Offall',best[1],'--off1')}
     <div class="dgcmp" aria-live="polite"></div>`;
-  box.querySelectorAll('li[draggable]').forEach(li=>{
+  const fit5=()=>box.querySelectorAll('details.dgsec[open] ol.dglist').forEach(ol=>{const li=[...ol.children].slice(0,5); if(!li.length||!li[0].offsetHeight)return; const h=li.reduce((t,x)=>t+x.offsetHeight,0)+(li.length-1)*6; ol.style.maxHeight=(h+2)+'px'});
+  box.querySelectorAll('details.dgsec').forEach(d=>d.addEventListener('toggle',()=>{DG.open[cat+d.dataset.k]=d.open; fit5()}));
+  fit5();
+  /* Every candidate is checked with the full calculation (placement, cuts, depreciation) in the background, in small slices so typing stays smooth: lots that cannot make even 1 piece disappear, and each card learns how many of its pieces the order needs. */
+  DG.tok=DG.tok||{}; const my=DG.tok[cat]=(DG.tok[cat]||0)+1;
+  const sig=(()=>{const root=$(DG_TAB[cat]); return root?JSON.stringify([...root.querySelectorAll('input')].map(i=>i.type==='checkbox'||i.type==='radio'?+i.checked:i.value))+'|'+JSON.stringify(UNIT.us):''})();
+  DG.cache=DG.cache||{}; const cc=(DG.cache[cat]&&DG.cache[cat].sig===sig)?DG.cache[cat]:(DG.cache[cat]={sig,m:new Map()});
+  const kinds=[['N',best[0],'--nominal'],['O',best[1],'--off1']];
+  const queue=[]; kinds.sort((p,q)=>(DG.open[cat+q[0]]?1:0)-(DG.open[cat+p[0]]?1:0)).forEach(([k,a,col])=>a.slice().forEach(x=>queue.push({k,a,col,x})));
+  let qi=0, gone=0;
+  const refresh=()=>{ if(DG.tok[cat]!==my)return;
+    kinds.forEach(([k,a])=>{const d=box.querySelector(`details.dgsec[data-k="${k}"]`); if(d){d.querySelector('.cnt').textContent=a.length+' fit'+(qi<queue.length?' · checking…':'')}});
+    fit5() };
+  const step=()=>{ if(DG.tok[cat]!==my||!box.isConnected)return; const t0=performance.now(); let changed=false;
+    while(qi<queue.length&&performance.now()-t0<14){ const {k,a,col,x}=queue[qi++]; let N=cc.m.get(x.i); if(N===undefined){N=dgOk(cat,x.r);cc.m.set(x.i,N)}
+      const li=box.querySelector(`details.dgsec[data-k="${k}"] li[data-i="${x.i}"]`);
+      if(!N){a.splice(a.indexOf(x),1); if(li)li.remove(); changed=true; if(DG.sel[cat]===x.i)DG.sel[cat]=null; continue}
+      if(x.N!==N){x.N=N; if(li){const n=document.createElement('div'); n.innerHTML=liOf(x,col); const nl=n.firstElementChild; li.replaceWith(nl); bindLi(nl); if(DG.sel[cat]===x.i)nl.classList.add('sel')} changed=true} }
+    if(changed||qi>=queue.length)refresh();
+    if(qi<queue.length)setTimeout(step,22); };
+  const bindLi=li=>{
     li.addEventListener('dragstart',e=>{DG.drag={cat,i:+li.dataset.i};li.classList.add('dragging');e.dataTransfer.effectAllowed='copy';try{e.dataTransfer.setData('text/plain',DIGGER_DATA[+li.dataset.i][3])}catch(_){}});
     li.addEventListener('dragend',()=>{li.classList.remove('dragging');DG.drag=null;document.querySelectorAll('.fs-drop').forEach(x=>x.classList.remove('dg-over'))});
     li.addEventListener('dblclick',()=>dgApply(cat,+li.dataset.i));
     li.addEventListener('click',()=>{const i=+li.dataset.i; DG.sel[cat]=DG.sel[cat]===i?null:i; dgMark(cat)});
-  });
+  };
+  box.querySelectorAll('li[draggable]').forEach(bindLi);
+  if(queue.length)setTimeout(step,0);
   if(DG.sel[cat]!=null&&!box.querySelector(`li[data-i="${DG.sel[cat]}"]`))DG.sel[cat]=null;
   dgMark(cat,true);
   const f=$('dg-'+cat+'-fam'); if(f)f.onchange=e=>{DG.fam[cat]=e.target.value;dgUpdate(cat,DG.last[cat]);dgMark(cat)};
@@ -1147,7 +1178,7 @@ function render(){
   const T={kg:0,loss:0,env:0,pcs:0,vn:0}; A.list.forEach(e=>{const o=optE(e);T.kg+=e.n*o.fl.reduce((t,x)=>t+x.kg,0);T.loss+=e.n*o.floss;T.env+=e.n*volE(e);T.pcs+=e.n*e.r.volPieces;T.vn+=e.n*e.r.volN});
   const bItems=[]; A.list.forEach((e,ei)=>{const f=flE(e); if(!f.some(o=>!o.empty))return; if(grpO)bItems.push({fl:f,m:e.n,f:-1,lab:bItems.length+1}); else for(let k=0;k<e.n;k++)bItems.push({fl:f,m:1,f:bItems.length,lab:bItems.length+1})});
   {const mb=mergeSame(bItems,bi=>bi.fl.map(o=>o.empty?'e':o.size.map(sg3).join(',')+'|'+sg3(o.kg)+'|'+sg3(o.dev)).join(';')); bItems.length=0; mb.forEach((b,k)=>{b.lab=k+1;bItems.push(b)})}
-  dgUpdate('BL',{list:opt.envs.map(e=>({label:dn(e.id)+' · '+Lc(e.size[0],0)+' × '+Lc(e.size[1],0)+' × '+Lc(e.size[2],0),mm:e.size}))});
+  {const pcs=[{lab:'',mm:I.P.map((x,k)=>x+I.A[k]),q:QT}]; if(I.on2)pcs.push({lab:'Part II',mm:I.P2.map((x,k)=>x+I.A2[k]),q:I.Q2}); if(pcs.length>1)pcs[0].lab='Part I'; dgUpdate('BL',{pcs})}
   const perm=r.perm.map(i=>AX[i]).join(' ');
   const totKg=T.kg, lossKg=T.loss;
   const mat=priceMat('BL');
@@ -1588,7 +1619,7 @@ function rRender(){
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('RD',null);return}
   const I=r.I, off=r.off, mat=priceMat('RD');
   const label=r.tube?'Tube':'Rod';
-  dgUpdate('RD',{od:I.od,L:r.used});
+  dgUpdate('RD',{od:I.od,L:r.Lpc,Q:r.agg?r.agg.Q:I.Q});
   const devOk=!off||(off.m&&!off.m.na);
   const A=r.agg, QT=A.Q, ringKgX=A.ringKg, multi=A.N>1;
   const loss=A.loss;
@@ -1802,7 +1833,7 @@ function qRender(){
   const main=$('qmain');
   if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('RN',null);return}
   const I=r.I, offs=r.offs, label=r.tube?'Tube':'Round', A=r.agg, QT=A.Q, multi=A.N>1, grpO=true;
-  dgUpdate('RN',{od:I.od,L:r.used});
+  dgUpdate('RN',{od:I.od,L:r.Lpc,Q:r.agg?r.agg.Q:I.Q});
   const kindOf={round:'Round',collar:'Collar',ring:'Ring',core:'Core'};
   const dimsOf=o=>o.type==='collar'?`ø${Lc(o.d1,1)} × ${Lc(o.l1,1)} + ø${Lc(o.D2,1)} × ${Lc(o.l2,1)}`:o.type==='ring'?`OD ${Lc(o.Do,1)} · ID ${Lc(o.Di,1)} × ${Lc(o.L,1)}`:`ø${Lc(o.D,1)} × ${Lc(o.L,1)}`;
   const devOk=A.devOk, naMsg=A.naMsg;
