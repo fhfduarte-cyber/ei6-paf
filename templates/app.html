@@ -263,6 +263,23 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .dg .dgsec>summary span{flex:1}.dg .dgsec>summary .cnt{font-family:var(--font-num);font-weight:500;text-transform:none;letter-spacing:0;color:var(--fg)}
 .dg ol.dglist{margin-top:6px;overflow-y:auto;max-height:290px;padding-right:2px;scrollbar-gutter:stable}
 .dg li .dgshort{display:block;margin-top:3px;font-size:11px;color:var(--bad,#b3261e)}
+.dg li.inc{outline:1px solid var(--brand)}
+.dg .dgadd{margin-left:auto;flex:0 0 auto;width:22px;height:22px;border-radius:50%;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);font-size:14px;line-height:1;cursor:pointer;padding:0}
+.dg .dgadd:hover{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.dg li .row{display:flex;align-items:center;gap:8px}.dg li .row .meta{flex:1;min-width:0}
+.dg .dgcb{margin-top:10px;border:1px solid var(--brand);border-radius:var(--radius);padding:8px;background:var(--brand-soft)}
+.dg .dgch{display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap}.dg .dgch .dgmiss{color:var(--warn);font-family:var(--font-num)}.dg .dgch .dgsave{font-family:var(--font-num)}
+.dg .dgclr{margin-left:auto;font-size:11px;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);border-radius:var(--radius);padding:2px 8px;cursor:pointer}
+.dg .dgcb ul{list-style:none;margin:6px 0;padding:0;display:grid;gap:6px}
+.dg .dgcb li{display:grid;grid-template-columns:1fr auto auto;gap:4px 8px;align-items:center;border:1px solid var(--line);border-left:3px solid var(--nominal);background:var(--surface);padding:6px 8px}
+.dg .dgcb .cl{display:block;min-width:0}.dg .dgcb .cl b{font-family:var(--font-num);font-size:12px;font-weight:500;word-break:break-word;display:block}.dg .dgcb .cl small{font-size:11px;color:var(--fg-muted)}
+.dg .dgcb .cn{font-size:11px;color:var(--fg-muted);display:flex;align-items:center;gap:4px}.dg .dgcb .cn input{width:54px;font-family:var(--font-num);font-size:12px;padding:2px 4px}
+.dg .dgcb .cc{grid-column:1;font-size:12px}.dg .dgcb .cc small{color:var(--fg-muted)}
+.dg .dgrm{grid-column:3;grid-row:1;border:0;background:none;color:var(--fg-muted);cursor:pointer;font-size:13px}
+.dg .dgcb li .dgshort{grid-column:1/-1;margin:0}
+.dg .dgsum{margin:4px 0 0;font-size:12px}
+.dg li .dgpc{display:block;margin-top:3px;font-size:11px;color:var(--fg-muted)}.dg li .dgpc b{color:var(--fg);font-family:var(--font-num);font-weight:500}
+.dg .dgnote{font-size:11px;color:var(--fg-muted);margin:6px 0 0}
 .dg .none{font-size:12px;color:var(--fg-muted);padding:4px 0}
 
 .dg>header{cursor:pointer;user-select:none}
@@ -708,26 +725,65 @@ function dgMark(cat,light){
   const out=box.querySelector('.dgcmp'); if(out)out.innerHTML=light?'':dgCompare(cat);
 }
 /* Runs the whole calculation (placement, cutting sequence, depreciation by the Depreciation rules) with the clicked stock lot as the Feedstock, and returns the weights that price it. */
-function dgSim(cat,r){
-  const d=r[2], mm=x=>x*25.4, saveMix=MIXON; let res;
+function dgSim(cat,r,q){
+  const d=r[2], mm=x=>x*25.4, saveMix=MIXON; let res; const qo=q>0?{Q:q}:{};
   try{
-    if(cat==='BL'){const o=readIn; readIn=()=>Object.assign(o(),{N:d.map(mm)}); try{res=solve()}finally{readIn=o}}
+    if(cat==='BL'){const o=readIn; readIn=()=>Object.assign(o(),{N:d.map(mm)},qo); try{res=solve()}finally{readIn=o}}
     else{
       const isR=cat==='RD', o=isR?rRead:qRead;
-      const ov=r[1]==='CL'?{collar:true,d1:mm(d[0]),l1:mm(d[1]),D2:mm(d[2]),l2:mm(d[3])}:{collar:false,D:mm(d[0]),L:mm(d[1])};
+      const ov=Object.assign(r[1]==='CL'?{collar:true,d1:mm(d[0]),l1:mm(d[1]),D2:mm(d[2]),l2:mm(d[3])}:{collar:false,D:mm(d[0]),L:mm(d[1])},qo);
       const f=()=>Object.assign(o(),ov); if(isR)rRead=f; else qRead=f;
       try{res=isR?rSolve():qSolve()}finally{if(isR)rRead=o;else qRead=o}
     }
   }catch(e){return null}finally{MIXON=saveMix}
   if(!res||res.error||!res.agg)return null;
   const A=res.agg, n=A.Q;
-  if(cat!=='BL')return {n,wP:res.pieceKg*n,loss:A.loss,calcKg:res.pieceKg*n+A.loss,N:A.N};
+  if(cat!=='BL')return {n,wP:res.pieceKg*n,loss:A.loss,calcKg:res.pieceKg*n+A.loss,N:A.N,mx:A.mx};
   const kgOf=pieceWeight(), I=res.I, multi=A.N>1;
   const optE=e=>e.r.opts[Math.min(state.sel,e.r.opts.length-1)];
   let loss=0; A.list.forEach(e=>{loss+=e.n*optE(e).floss});
   const dems=res.mix?[{id:0,Q:I.Q}]:res.dems.map(x=>({id:x.id,Q:multi?n:x.Q}));
   const wP=dems.reduce((t,x)=>t+kgOf[x.id]*x.Q,0);
-  return {n,wP,loss,calcKg:wP+loss,N:A.N};
+  return {n,wP,loss,calcKg:wP+loss,N:A.N,mx:A.mx};
+}
+/* ---- Combination of lots: several different lots (Nominal and/or Offall) together cover the pieces asked. Each lot gets its share of pieces;
+   every share goes through the whole calculation (placement, cuts, depreciation) with that lot as the Feedstock. Cost only: it is not loaded into the Feedstock box. ---- */
+const inCombo=(cat,i)=>((DG.combo||{})[cat]||[]).some(x=>x.i===i);
+function dgComboToggle(cat,i){
+  DG.combo=DG.combo||{}; const L=DG.combo[cat]=DG.combo[cat]||[], at=L.findIndex(x=>x.i===i);
+  if(at>=0)L.splice(at,1);
+  else{
+    const Q=DG.qtot[cat]||0, used=L.reduce((t,x)=>t+x.n,0), left=Q-used, r=DIGGER_DATA[i];
+    const sim=dgSim(cat,r,Q); if(!sim){dgComboMsg(cat,'This lot does not work as a Feedstock for this calculation.');return}
+    const avail=r[0]===1?1:r[5], cap=Math.max(1,sim.mx||Q)*avail;
+    if(left<=0){dgComboMsg(cat,'The combination already covers all '+Q+' pcs. Remove a lot or lower its pieces first.');return}
+    L.push({i,n:Math.min(cap,left),cap});
+  }
+  dgComboRender(cat); dgSyncAdd(cat);
+}
+function dgSyncAdd(cat){const box=$('dg-'+cat+'-body'); if(!box)return;
+  box.querySelectorAll('li[draggable]').forEach(li=>{const b=li.querySelector('.dgadd'); if(b){const on=inCombo(cat,+li.dataset.i); b.textContent=on?'✓':'+'; li.classList.toggle('inc',on)}})}
+function dgComboMsg(cat,t){const o=document.querySelector('#dg-'+cat+'-body .dgcombo'); if(o)o.innerHTML=`<div class="dgcb"><p class="dgshort">${t}</p></div>`+o.innerHTML.replace(/^<div class="dgcb"><p class="dgshort">.*?<\/p><\/div>/,'')}
+function dgComboRender(cat){
+  const o=document.querySelector('#dg-'+cat+'-body .dgcombo'); if(!o)return;
+  const L=(DG.combo&&DG.combo[cat])||[], Q=(DG.qtot||{})[cat]||0;
+  if(!L.length){o.innerHTML='';return}
+  const d2=n=>'$ '+nf(Math.abs(n),2), base=(()=>{const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q']; return P&&P[0]?P[0].b*matSrc(cat).kg/priceMat(cat).kg:NaN})();
+  let cov=0,tot=0,ok=true; const rows=L.map((x,k)=>{
+    const r=DIGGER_DATA[x.i], sim=dgSim(cat,r,x.n), pk=lotPerKg(cat,r), avail=r[0]===1?1:r[5];
+    const max=Math.min(x.cap,x.n+Math.max(0,Q-L.reduce((t,y)=>t+y.n,0)));
+    cov+=x.n; let cost=NaN, warn='';
+    if(!sim)warn='does not work as the Feedstock';
+    else{ if(sim.N>avail)warn=`needs ${sim.N} Feedstock pcs, only ${avail} available`; if(pk)cost=sim.calcKg*pk.perKg; else warn=warn||'no Unit Cost in the report' }
+    if(isFinite(cost))tot+=cost; else ok=false;
+    return `<li data-k="${k}"><span class="cl"><b>${r[3]}</b><small>${r[0]===1?'Offall':'Nominal'} · ${dgSize(r)} ${LUl()}</small></span><label class="cn"><input type="number" min="1" max="${max}" step="1" value="${x.n}" data-k="${k}" aria-label="Pieces made from this lot"> pcs</label><span class="cc num">${isFinite(cost)?d2(cost)+' <small>('+d2(cost/x.n)+'/pc)</small>':'—'}</span><button type="button" class="dgrm" data-k="${k}" aria-label="Remove this lot">✕</button>${warn?`<span class="dgshort">${warn}</span>`:''}</li>`}).join('');
+  const miss=Q-cov, avg=tot/(cov||1);
+  const cmp=!ok?'':!isFinite(base)||!(base>0)?`Average ${d2(avg)} per piece. Select a material in Material cost to compare.`
+    :(()=>{const diff=base-avg,pc=Math.abs(diff)/base*100; return `Average <b>${d2(avg)}</b> per piece vs ${d2(base)} with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pc,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pc,1)}%)</span>`}.`})();
+  o.innerHTML=`<div class="dgcb"><div class="dgch"><b>Combination</b><span class="${miss>0?'dgmiss':'dgsave'}">${cov} of ${Q} pcs${miss>0?' · '+miss+' missing':' · complete'}</span><button type="button" class="dgclr">Clear</button></div><ul>${rows}</ul><p class="dgsum">${cmp}${miss>0&&ok?' Cost is for the '+cov+' pcs covered.':''}</p></div>`;
+  o.querySelectorAll('input[type=number]').forEach(i=>i.addEventListener('change',()=>{const k=+i.dataset.k, x=L[k]; const others=L.reduce((t,y,j)=>j===k?t:t+y.n,0); x.n=Math.max(1,Math.min(Math.round(+i.value)||1,x.cap,Math.max(1,Q-others))); dgComboRender(cat)}));
+  o.querySelectorAll('.dgrm').forEach(b=>b.onclick=()=>{L.splice(+b.dataset.k,1);dgComboRender(cat);dgSyncAdd(cat)});
+  const c=o.querySelector('.dgclr'); if(c)c.onclick=()=>{DG.combo[cat]=[];dgComboRender(cat);dgSyncAdd(cat)};
 }
 function dgCompare(cat){
   const i=DG.sel[cat]; if(i==null||!DIGGER_DATA[i])return '';
@@ -766,7 +822,7 @@ function dgUpdate(cat,spec){
   if(cat==='BL'){
     const ss=spec.pcs.map(e=>[...e.mm].map(x=>x/25.4).sort((p,q)=>p-q));
     spec={ss,rows:spec.pcs.map(e=>({lab:e.lab,dim:Lc(e.mm[0],0)+' × '+Lc(e.mm[1],0)+' × '+Lc(e.mm[2],0),q:e.q})),
-      vol:spec.pcs.reduce((t,e,k)=>t+e.q*ss[k][0]*ss[k][1]*ss[k][2],0)};
+      vol:spec.pcs.reduce((t,e,k)=>t+e.q*ss[k][0]*ss[k][1]*ss[k][2],0),Q:spec.pcs[0].q};
   }else{
     spec={od:spec.od/25.4,L:spec.L/25.4,Q:spec.Q,txt:`ø${Lc(spec.od,0)} × ${Lc(spec.L,0)} ${LUl()} × ${spec.Q} pcs`};
     spec.vol=Math.PI/4*spec.od*spec.od*spec.L*spec.Q;
@@ -786,13 +842,15 @@ function dgUpdate(cat,spec){
   const qtyOf=r=>r[0]===1?Wu(r[5]*0.45359237,0):`${r[5]} pcs`;
   const availOf=r=>r[0]===1?1:r[5];
   const shortOf=(r,N)=>N>availOf(r)?`<span class="dgshort">Available (${availOf(r)} pc${availOf(r)>1?'s':''}) is less than demanded (${N} pcs)</span>`:'';
-  const liOf=({r,v,i,N},col)=>`<li draggable="true" data-i="${i}" title="Click to compare its cost · drag to the Feedstock box (or double-click) to use these dimensions" style="--c:var(${col})"><span class="lot"><span class="fill" title="Whole order ÷ volume of the Feedstock pieces it needs">${nf(Math.min(100,spec.vol/(v*(N||1))*100),0)}%</span>${r[3]}</span><div class="row"><span class="meta">${r[1]==='CL'?'Collar · ':''}${dgSize(r)} ${LUl()} · ${qtyOf(r)}${r[6]?' · '+r[6]:''}</span>${ucOf(r)}</div>${N?shortOf(r,N):''}</li>`;
-  DG.open=DG.open||{};
+  const liOf=({r,v,i,N,cost},col)=>`<li draggable="true" class="${inCombo(cat,i)?'inc':''}" data-i="${i}" title="Click to compare its cost · drag to the Feedstock box (or double-click) to use these dimensions" style="--c:var(${col})"><span class="lot"><span class="fill" title="Whole order ÷ volume of the Feedstock pieces it needs">${nf(Math.min(100,spec.vol/(v*(N||1))*100),0)}%</span>${r[3]}</span><div class="row"><span class="meta">${r[1]==='CL'?'Collar · ':''}${dgSize(r)} ${LUl()} · ${qtyOf(r)}${r[6]?' · '+r[6]:''}</span>${ucOf(r)}<button type="button" class="dgadd" title="Add this lot to the combination" aria-label="Add this lot to the combination">${inCombo(cat,i)?'✓':'+'}</button></div>${isFinite(cost)?`<span class="dgpc" title="Cost of one demanded piece with this lot as the Feedstock: whole calculation (placement, cutting sequence, depreciation) × Unit Cost">Piece cost <b>$ ${nf(cost,2)}</b></span>`:''}${N?shortOf(r,N):''}</li>`;
+  DG.open=DG.open||{}; DG.combo=DG.combo||{}; DG.qtot=DG.qtot||{}; DG.qtot[cat]=spec.Q;
+  { const k=dgDemKey(cat); DG.ckey=DG.ckey||{}; if(DG.ckey[cat]!==k){DG.ckey[cat]=k; DG.combo[cat]=[]} }
   const sec=(k,title,a,col)=>`<details class="dgsec" data-k="${k}" ${DG.open[cat+k]?'open':''}><summary><span>${title}</span><b class="cnt">${a.length} fit</b></summary>${a.length?`<ol class="dglist" data-k="${k}">${a.map(x=>liOf(x,col)).join('')}</ol>`:'<div class="none">No stock can make even 1 piece.</div>'}</details>`;
   box.innerHTML=`<div class="dgrow"><label for="dg-${cat}-fam">Material</label><select id="dg-${cat}-fam"><option value="">All</option>${fams.map(f=>`<option ${f===DG.fam[cat]?'selected':''}>${f}</option>`).join('')}</select></div>
     <div class="dgv">Stock that can make at least 1 piece of ${DG_CAT[cat]}${spec.rows?`<ul class="dgvl">${spec.rows.map((x,k)=>`<li>${x.lab?x.lab+': ':''}${x.dim} ${LUl()} × ${x.q} pcs</li>`).join('')}</ul>`:` <b>${spec.txt}</b>`}</div>
+    <div class="dgnote">Once checked, cards are ordered by the cost of the demanded piece (whole calculation: yield, cutting sequence, depreciation), cheapest first.</div>
     ${sec('N','Nominal',best[0],'--nominal')}${sec('O','Offall',best[1],'--off1')}
-    <div class="dgcmp" aria-live="polite"></div>`;
+    <div class="dgcombo" aria-live="polite"></div><div class="dgcmp" aria-live="polite"></div>`;
   const fit5=()=>box.querySelectorAll('details.dgsec[open] ol.dglist').forEach(ol=>{const li=[...ol.children].slice(0,5); if(!li.length||!li[0].offsetHeight)return; const h=li.reduce((t,x)=>t+x.offsetHeight,0)+(li.length-1)*6; ol.style.maxHeight=(h+2)+'px'});
   box.querySelectorAll('details.dgsec').forEach(d=>d.addEventListener('toggle',()=>{DG.open[cat+d.dataset.k]=d.open; fit5()}));
   fit5();
@@ -807,10 +865,11 @@ function dgUpdate(cat,spec){
     kinds.forEach(([k,a])=>{const d=box.querySelector(`details.dgsec[data-k="${k}"]`); if(d){d.querySelector('.cnt').textContent=a.length+' fit'+(qi<queue.length?' · checking…':'')}});
     fit5() };
   const step=()=>{ if(DG.tok[cat]!==my||!box.isConnected)return; const t0=performance.now(); let changed=false;
-    while(qi<queue.length&&performance.now()-t0<14){ const {k,a,col,x}=queue[qi++]; let N=cc.m.get(x.i); if(N===undefined){N=dgOk(cat,x.r);cc.m.set(x.i,N)}
+    while(qi<queue.length&&performance.now()-t0<14){ const {k,a,col,x}=queue[qi++]; let got=cc.m.get(x.i); if(got===undefined){const sm=dgSim(cat,x.r); const pk=sm&&lotPerKg(cat,x.r); got={N:sm?sm.N:0,cost:sm&&pk?sm.calcKg*pk.perKg/sm.n:Infinity}; cc.m.set(x.i,got)} const N=got.N;
       const li=box.querySelector(`details.dgsec[data-k="${k}"] li[data-i="${x.i}"]`);
       if(!N){a.splice(a.indexOf(x),1); if(li)li.remove(); changed=true; if(DG.sel[cat]===x.i)DG.sel[cat]=null; continue}
-      if(x.N!==N){x.N=N; if(li){const n=document.createElement('div'); n.innerHTML=liOf(x,col); const nl=n.firstElementChild; li.replaceWith(nl); bindLi(nl); if(DG.sel[cat]===x.i)nl.classList.add('sel')} changed=true} }
+      if(x.N!==N||x.cost!==got.cost){x.N=N; x.cost=got.cost; if(li){const n=document.createElement('div'); n.innerHTML=liOf(x,col); const nl=n.firstElementChild; li.replaceWith(nl); bindLi(nl); if(DG.sel[cat]===x.i)nl.classList.add('sel')} changed=true} }
+    if(qi>=queue.length)kinds.forEach(([k,a])=>{ a.sort((p,q)=>((p.cost??Infinity)-(q.cost??Infinity))||p.v-q.v); const ol=box.querySelector(`details.dgsec[data-k="${k}"] ol.dglist`); if(ol)a.forEach(x=>{const li=ol.querySelector(`li[data-i="${x.i}"]`); if(li)ol.appendChild(li)}); });
     if(changed||qi>=queue.length)refresh();
     if(qi<queue.length)setTimeout(step,22); };
   const bindLi=li=>{
@@ -818,8 +877,10 @@ function dgUpdate(cat,spec){
     li.addEventListener('dragend',()=>{li.classList.remove('dragging');DG.drag=null;document.querySelectorAll('.fs-drop').forEach(x=>x.classList.remove('dg-over'))});
     li.addEventListener('dblclick',()=>dgApply(cat,+li.dataset.i));
     li.addEventListener('click',()=>{const i=+li.dataset.i; DG.sel[cat]=DG.sel[cat]===i?null:i; dgMark(cat)});
+    const ab=li.querySelector('.dgadd'); if(ab){ab.draggable=false;ab.addEventListener('click',e=>{e.stopPropagation();dgComboToggle(cat,+li.dataset.i)})}
   };
   box.querySelectorAll('li[draggable]').forEach(bindLi);
+  dgComboRender(cat);
   if(queue.length)setTimeout(step,0);
   if(DG.sel[cat]!=null&&!box.querySelector(`li[data-i="${DG.sel[cat]}"]`))DG.sel[cat]=null;
   dgMark(cat,true);
