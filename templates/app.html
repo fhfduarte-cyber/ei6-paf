@@ -3138,7 +3138,9 @@ pafView();
       else { mm = re2.exec(rest); if (mm && /^\s*x\s*\d/i.test(rest.slice(mm[0].length))) mm = null; d = mm && mm.slice(1).map(frac); }
       if (!d || d.some(x => !isFinite(x))) continue;
       const cost = num(val(ws.getCell(r, head['unit cost']))); if (cost == null) continue;
-      rows.push([/offall/i.test(desc) ? 1 : 0, cat, d, lot, desc.replace(/\s*(NOMINAL STOCK|OFFALL)\s*$/i, '').trim(), qty, norm(val(ws.getCell(r, head['location']))), cost]);
+      const ag = head['aging period'] ? norm(val(ws.getCell(r, head['aging period']))).toLowerCase() : '';   // 1 Under 1 Year, 2 Over 1 Year, 3 Over 2 Years, 4 Over 3 Years, 0 unknown
+      const age = /under\s*1/.test(ag) ? 1 : /over\s*3/.test(ag) ? 4 : /over\s*2/.test(ag) ? 3 : /over\s*1/.test(ag) ? 2 : 0;
+      rows.push([/offall/i.test(desc) ? 1 : 0, cat, d, lot, desc.replace(/\s*(NOMINAL STOCK|OFFALL)\s*$/i, '').trim(), qty, norm(val(ws.getCell(r, head['location']))), cost, age]);
     }
     if (!rows.length) throw new Error('No usable stock rows found in the Parma "Data" sheet');
     return { source: srcName || 'Parma M Aged Report', rows };
