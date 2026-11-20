@@ -280,6 +280,9 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .dg .dgsum{margin:4px 0 0;font-size:12px}
 .dg li .dgpc{display:block;margin-top:3px;font-size:11px;color:var(--fg-muted)}.dg li .dgpc b{color:var(--fg);font-family:var(--font-num);font-weight:500}
 .dg .dgnote{font-size:11px;color:var(--fg-muted);margin:6px 0 0}
+.man{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 2px}.man .manin{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-muted)}.man .manin input{width:96px;font-family:var(--font-num);font-size:13px;padding:4px 6px}
+.man+.manote{margin:4px 0 8px!important;font-size:11px}
+.dg .dguse{margin-top:6px;width:100%;font-size:12px;border:1px solid var(--brand);background:var(--brand);color:var(--brand-ink);border-radius:var(--radius);padding:6px 8px;cursor:pointer}.dg .dguse:disabled{opacity:.5;cursor:not-allowed}
 .dg .none{font-size:12px;color:var(--fg-muted);padding:4px 0}
 
 .dg>header{cursor:pointer;user-select:none}
@@ -746,6 +749,19 @@ function dgSim(cat,r,q){
   const wP=dems.reduce((t,x)=>t+kgOf[x.id]*x.Q,0);
   return {n,wP,loss,calcKg:wP+loss,N:A.N,mx:A.mx};
 }
+/* ---- Manual piece cost: replaces the material piece cost ($/pc) of the calculator (e.g. the average of a Material Digger combination, which already includes yield, cutting sequence and depreciation) ---- */
+function manSt(cat){DG.man=DG.man||{}; return DG.man[cat]||(DG.man[cat]={on:false,v:'',note:''})}
+function manPc(cat){const m=manSt(cat),v=parseFloat(m.v); return m.on&&isFinite(v)&&v>=0?v:null}
+function manHTML(cat){
+  const m=manSt(cat), v=manPc(cat), esc=x=>String(x==null?'':x).replace(/[&<>"'`]/g,c=>'&#'+c.charCodeAt(0)+';');
+  return `<div class="man" data-cat="${cat}"><label class="tg out" title="Use your own material cost per piece instead of the calculated one"><input type="checkbox" data-man="on" data-cat="${cat}" ${m.on?'checked':''}>Manual piece cost</label>
+    <span class="manin" ${m.on?'':'hidden'}><input type="number" min="0" step="any" data-man="v" data-cat="${cat}" value="${esc(m.v)}" placeholder="0.00" aria-label="Manual material piece cost"> $/pc</span></div>
+    ${m.on?`<p class="note manote">${v==null?'Enter the manual material cost per piece.':'Manual piece cost: $ '+nf(v,2)+' /pc replaces the calculated Piece cost'+(m.note?' ('+esc(m.note)+')':'')+'. Yield, cuts and depreciation are not recalculated from it.'}</p>`:''}`;
+}
+function listBase(cat,fallback){const L=(window.__LISTB||{})[cat]; const b=isFinite(L)?L:fallback; return b*matSrc(cat).kg/priceMat(cat).kg}
+document.addEventListener('change',e=>{const t=e.target; if(!t||!t.dataset||!t.dataset.man)return; const cat=t.dataset.cat, m=manSt(cat);
+  if(t.dataset.man==='on'){m.on=t.checked; if(!t.checked)m.note=''}else{m.v=t.value; m.note=m.note&&m.v!==m.cv?'':m.note}
+  ({BL:render,RD:rRender,RN:qRender})[cat]()});
 /* ---- Combination of lots: several different lots (Nominal and/or Offall) together cover the pieces asked. Each lot gets its share of pieces;
    every share goes through the whole calculation (placement, cuts, depreciation) with that lot as the Feedstock. Cost only: it is not loaded into the Feedstock box. ---- */
 const inCombo=(cat,i)=>((DG.combo||{})[cat]||[]).some(x=>x.i===i);
@@ -768,7 +784,7 @@ function dgComboRender(cat){
   const o=document.querySelector('#dg-'+cat+'-body .dgcombo'); if(!o)return;
   const L=(DG.combo&&DG.combo[cat])||[], Q=(DG.qtot||{})[cat]||0;
   if(!L.length){o.innerHTML='';return}
-  const d2=n=>'$ '+nf(Math.abs(n),2), base=(()=>{const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q']; return P&&P[0]?P[0].b*matSrc(cat).kg/priceMat(cat).kg:NaN})();
+  const d2=n=>'$ '+nf(Math.abs(n),2), base=(()=>{const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q']; return P&&P[0]?listBase(cat,P[0].b):NaN})();
   let cov=0,tot=0,ok=true; const rows=L.map((x,k)=>{
     const r=DIGGER_DATA[x.i], sim=dgSim(cat,r,x.n), pk=lotPerKg(cat,r), avail=r[0]===1?1:r[5];
     const max=Math.min(x.cap,x.n+Math.max(0,Q-L.reduce((t,y)=>t+y.n,0)));
@@ -780,7 +796,8 @@ function dgComboRender(cat){
   const miss=Q-cov, avg=tot/(cov||1);
   const cmp=!ok?'':!isFinite(base)||!(base>0)?`Average ${d2(avg)} per piece. Select a material in Material cost to compare.`
     :(()=>{const diff=base-avg,pc=Math.abs(diff)/base*100; return `Average <b>${d2(avg)}</b> per piece vs ${d2(base)} with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pc,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pc,1)}%)</span>`}.`})();
-  o.innerHTML=`<div class="dgcb"><div class="dgch"><b>Combination</b><span class="${miss>0?'dgmiss':'dgsave'}">${cov} of ${Q} pcs${miss>0?' · '+miss+' missing':' · complete'}</span><button type="button" class="dgclr">Clear</button></div><ul>${rows}</ul><p class="dgsum">${cmp}${miss>0&&ok?' Cost is for the '+cov+' pcs covered.':''}</p></div>`;
+  o.innerHTML=`<div class="dgcb"><div class="dgch"><b>Combination</b><span class="${miss>0?'dgmiss':'dgsave'}">${cov} of ${Q} pcs${miss>0?' · '+miss+' missing':' · complete'}</span><button type="button" class="dgclr">Clear</button></div><ul>${rows}</ul><p class="dgsum">${cmp}${miss>0&&ok?' Cost is for the '+cov+' pcs covered.':''}</p>${ok?`<button type="button" class="dguse" ${miss>0?'disabled title="Cover all the pieces first"':'title="Copy the average to Manual piece cost in Material cost"'}>Use average as Manual piece cost · $ ${nf(avg,2)}/pc</button>`:''}</div>`;
+  const ub=o.querySelector('.dguse'); if(ub)ub.onclick=()=>{const m=manSt(cat); m.on=true; m.v=String(Math.round(avg*100)/100); m.cv=m.v; m.note='average of '+L.length+' lot'+(L.length>1?'s':'')+': '+L.map(x=>DIGGER_DATA[x.i][3]+' × '+x.n).join(', '); ({BL:render,RD:rRender,RN:qRender})[cat]()};
   o.querySelectorAll('input[type=number]').forEach(i=>i.addEventListener('change',()=>{const k=+i.dataset.k, x=L[k]; const others=L.reduce((t,y,j)=>j===k?t:t+y.n,0); x.n=Math.max(1,Math.min(Math.round(+i.value)||1,x.cap,Math.max(1,Q-others))); dgComboRender(cat)}));
   o.querySelectorAll('.dgrm').forEach(b=>b.onclick=()=>{L.splice(+b.dataset.k,1);dgComboRender(cat);dgSyncAdd(cat)});
   const c=o.querySelector('.dgclr'); if(c)c.onclick=()=>{DG.combo[cat]=[];dgComboRender(cat);dgSyncAdd(cat)};
@@ -789,7 +806,7 @@ function dgCompare(cat){
   const i=DG.sel[cat]; if(i==null||!DIGGER_DATA[i])return '';
   const r=DIGGER_DATA[i], d=r[2], d2=n=>'$ '+nf(Math.abs(n),2), head=`<b>Lot ${r[3]}</b>`;
   if(!(r[7]>0))return `<p>${head}: no Unit Cost in the report.</p>`;
-  const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q'], base=P&&P[0]?P[0].b*matSrc(cat).kg/priceMat(cat).kg:NaN;   // always against the price list item
+  const P=(window.__MCHP||{})[cat==='BL'?'b':cat==='RD'?'r':'q'], base=P&&P[0]?listBase(cat,P[0].b):NaN;   // always against the calculated cost with the price list item (not the manual one)
   const sim=dgSim(cat,r);
   if(!sim)return `<p>${head}: does not work as the Feedstock for this calculation.</p>`;
   if(sim.N!==1)return `<p>${head}: one piece does not hold the whole order (${sim.N} pieces needed).</p>`;
@@ -856,7 +873,7 @@ function dgUpdate(cat,spec){
   fit5();
   /* Every candidate is checked with the full calculation (placement, cuts, depreciation) in the background, in small slices so typing stays smooth: lots that cannot make even 1 piece disappear, and each card learns how many of its pieces the order needs. */
   DG.tok=DG.tok||{}; const my=DG.tok[cat]=(DG.tok[cat]||0)+1;
-  const sig=(()=>{const root=$(DG_TAB[cat]); return root?JSON.stringify([...root.querySelectorAll('input')].map(i=>i.type==='checkbox'||i.type==='radio'?+i.checked:i.value))+'|'+JSON.stringify(UNIT.us):''})();
+  const sig=(()=>{const root=$(DG_TAB[cat]); return root?JSON.stringify([...root.querySelectorAll('input')].filter(i=>!i.dataset.man).map(i=>i.type==='checkbox'||i.type==='radio'?+i.checked:i.value))+'|'+JSON.stringify(UNIT.us):''})();
   DG.cache=DG.cache||{}; const cc=(DG.cache[cat]&&DG.cache[cat].sig===sig)?DG.cache[cat]:(DG.cache[cat]={sig,m:new Map()});
   const kinds=[['N',best[0],'--nominal'],['O',best[1],'--off1']];
   const queue=[]; kinds.sort((p,q)=>(DG.open[cat+q[0]]?1:0)-(DG.open[cat+p[0]]?1:0)).forEach(([k,a,col])=>a.slice().forEach(x=>queue.push({k,a,col,x})));
@@ -1246,7 +1263,8 @@ function render(){
   const cd=r.mix?[{id:0,Q:I.Q,kg:kgOf[0],w:kgOf[0]*I.Q}]:r.dems.map(d=>{const Q=multi?QT:d.Q;return {id:d.id,Q,kg:kgOf[d.id],w:kgOf[d.id]*Q}}).sort((a,b)=>a.id-b.id);
   const wSum=cd.reduce((s,d)=>s+d.w,0);
   cd.forEach(d=>{d.loss=lossKg*d.w/wSum;d.cost=(d.w+d.loss)*mat.kg/d.Q});
-  const calcKg=wSum+lossKg, lotCost=calcKg*mat.kg;
+  (window.__LISTB=window.__LISTB||{}).BL=cd[0].cost; const mpB=manPc('BL'); if(mpB!=null)cd.forEach(d=>d.cost=mpB);
+  const calcKg=wSum+lossKg, lotCost=mpB!=null?mpB*QT:calcKg*mat.kg;
   const money=n=>'$ '+nf(n,2);
   const envVol=e=>e.size[0]*e.size[1]*e.size[2]/1e9;
   const volEnv=T.env;
@@ -1312,7 +1330,7 @@ function render(){
         ${PRICE_SAMPLE?'<div class="sample">Price List Trading not loaded yet. The prices below are examples.</div>':''}
         <div class="field"><label for="mat">Material · grade and size</label>
           <select id="mat">${[...new Set(PRICES.map(p=>p.grp))].map(g=>`<optgroup label="${g}">${PRICES.map((p,i)=>p.grp===g?`<option value="${i}" ${i===state.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`:'').join('')}</optgroup>`).join('')}</select></div>
-        ${stockMsg(mat)}${matLow('BL')}${matCard('BL')}${priceSrcUI('BL')}${xcHTML('blocks')}
+        ${stockMsg(mat)}${matLow('BL')}${matCard('BL')}${priceSrcUI('BL')}${manHTML('BL')}${xcHTML('blocks')}
         <dl class="dl num">
           ${cd.map(d=>`<dt>${r.mix?'Pieces (both groups)':dn(d.id)} · ${Wu(d.kg,2)} × ${d.Q} pcs</dt><dd>${Wu(d.w,2)} <span class="pctnote" title="Demand weight ÷ total calculation weight">(${nf(calcKg?d.w/calcKg*100:0,1)}%)</span></dd>`).join('')}
           <dt>+ Weighted depreciated weight</dt><dd>${Wu(lossKg,2)} <span class="pctnote" title="Depreciated weight ÷ total calculation weight">(${nf(calcKg?lossKg/calcKg*100:0,1)}%)</span></dd>
@@ -1684,7 +1702,7 @@ function rRender(){
   const devOk=!off||(off.m&&!off.m.na);
   const A=r.agg, QT=A.Q, ringKgX=A.ringKg, multi=A.N>1;
   const loss=A.loss;
-  const wP=r.pieceKg*QT, calcKg=wP+loss, lotCost=calcKg*mat.kg, pcCost=lotCost/QT;
+  const wP=r.pieceKg*QT, calcKg=wP+loss, pcCost0=calcKg*mat.kg/QT, mpR=manPc('RD'), pcCost=mpR!=null?mpR:pcCost0, lotCost=pcCost*QT; (window.__LISTB=window.__LISTB||{}).RD=pcCost0;
   const needHTML=multi
     ?`<dt>Feedstock pieces</dt><dd><b>${A.N} pcs</b></dd><dt>${A.nFull} × full</dt><dd>${A.mx} pcs each</dd>${A.rem?`<dt>1 × last</dt><dd>${A.rem} pcs</dd>`:''}<dt>Total Offall</dt><dd><b>${A.offKg>0?Wu(A.offKg,1):'none'}</b></dd>`
     :`<dt>Feedstock pieces</dt><dd><b>1 pc</b></dd><dt>Total Offall</dt><dd><b>${A.offKg>0?Wu(A.offKg,1):'none'}</b></dd>`;
@@ -1745,7 +1763,7 @@ function rRender(){
         ${omSt('rods').on?omHTML('rods',['']):`
         <div class="field"><label for="rmat">Material · grade and size</label>
           <select id="rmat">${RODPRICES.map((p,i)=>`<option value="${i}" ${i===rstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>
-        ${stockMsg(mat)}${matLow('RD')}${matCard('RD')}${priceSrcUI('RD')}${xcHTML('rods')}
+        ${stockMsg(mat)}${matLow('RD')}${matCard('RD')}${priceSrcUI('RD')}${manHTML('RD')}${xcHTML('rods')}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${off&&!devOk&&!ringKgX?'— <span class="pctnote">(no table row)</span>':Wu(loss,2)+' '+pctn(loss)+(off&&!devOk?' <span class="pctnote">(excess OD stock only; Offall has no table row)</span>':'')}</dd>
@@ -1940,7 +1958,7 @@ function qRender(){
     <div class="cost">
       <div class="in">
         ${omSt('rounds').on?omHTML('rounds',['']):`
-        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>${stockMsg(ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)])}${matLow('RN')}${matCard('RN')}${priceSrcUI('RN')}${xcHTML('rounds')}`
+        ${ROUNDPRICES.length?`<div class="field"><label for="qmat">Material · grade and size</label><select id="qmat">${ROUNDPRICES.map((p,i)=>`<option value="${i}" ${i===qstate.mat?'selected':''}>${p.name} ($ ${nf(PP(p.kg),2)}/${MUl()})${noStock(p)?' · not in stock':''}</option>`).join('')}</select></div>${stockMsg(ROUNDPRICES[Math.min(qstate.mat,ROUNDPRICES.length-1)])}${matLow('RN')}${matCard('RN')}${priceSrcUI('RN')}${manHTML('RN')}${xcHTML('rounds')}`
         :`<div class="field"><label for="qprice">Cost per kg · Price $/kg</label><div class="inp"><input id="qprice" type="number" min="0" step="any" value="${qstate.price}" placeholder="awaiting price list"><span>$/kg</span></div></div>`}
         <dl class="dl num">
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
@@ -1961,7 +1979,8 @@ function qRender(){
   const cost=()=>{
     const kg=ROUNDPRICES.length?priceMat('RN').kg:parseFloat(qstate.price);
     const has=kg>=0&&isFinite(kg);
-    if($('qlot')){$('qlot').textContent=has?'$ '+nf(calcKg*kg,2):'—'; $('qpc').textContent=has?'$ '+nf(calcKg*kg/QT,2):'—'} mcSet('rounds','q',omPrice('rounds',0,has?calcKg*kg/QT:NaN));xcShow('rounds'); if(window.mchFin)mchFin('q'); if(window.dgMark)dgMark('RN');
+    const mpQ=manPc('RN'), pq=mpQ!=null?mpQ:(has?calcKg*kg/QT:NaN); (window.__LISTB=window.__LISTB||{}).RN=has?calcKg*kg/QT:NaN;
+    if($('qlot')){$('qlot').textContent=isFinite(pq)?'$ '+nf(pq*QT,2):'—'; $('qpc').textContent=isFinite(pq)?'$ '+nf(pq,2):'—'} mcSet('rounds','q',omPrice('rounds',0,pq));xcShow('rounds'); if(window.mchFin)mchFin('q'); if(window.dgMark)dgMark('RN');
   };
   cost();
   omInit();
@@ -2640,7 +2659,7 @@ function snapTake(){
     v[el.id]=el.type==='checkbox'?el.checked:(UK[el.id]?{b:el.dataset.base}:el.value)});
   const tab=TABS.find(k=>!$('tab-'+k).hidden)||'blocks';
   return jclone({v,tab,state:{mat:state.mat,sel:state.sel,view:state.view},rstate:{mat:rstate.mat,view:rstate.view},qstate:{mat:qstate.mat,price:qstate.price,view:qstate.view},
-    MCH:window.__MCH||{},OM:window.__OM||{},XC:window.__XC||{},DG:{fam:DG.fam,env:DG.env,applied:DG.applied||null,lot:DG.lot}});
+    MCH:window.__MCH||{},OM:window.__OM||{},XC:window.__XC||{},DG:{fam:DG.fam,env:DG.env,applied:DG.applied||null,lot:DG.lot,man:DG.man||{}}});
 }
 /* Saved states come from the database / a file: coerce them before they ever reach a template string.
    Only the free-text fields (v = vendor, n = quote #, o = notes) may keep special characters; they are never put in markup. */
@@ -2658,7 +2677,7 @@ function snapPut(S0_){
   state.mat=S.state.mat;state.sel=S.state.sel;state.hi=-1;state.view=S.state.view;
   rstate.mat=S.rstate.mat;rstate.view=S.rstate.view;qstate.mat=S.qstate.mat;qstate.price=S.qstate.price;qstate.view=S.qstate.view;
   window.__MCH=S.MCH;window.__OM=S.OM;window.__XC=S.XC;window.__MCHP={};
-  DG.fam=S.DG.fam||{BL:'',RD:'',RN:''};DG.env=S.DG.env||{BL:0};DG.applied=S.DG.applied||null;DG.last={};DG.pin={BL:null,RD:null,RN:null};DG.lot=S.DG.lot||{BL:false,RD:false,RN:false};
+  DG.fam=S.DG.fam||{BL:'',RD:'',RN:''};DG.env=S.DG.env||{BL:0};DG.applied=S.DG.applied||null;DG.last={};DG.pin={BL:null,RD:null,RN:null};DG.lot=S.DG.lot||{BL:false,RD:false,RN:false};DG.man=jclone(S.DG.man||{});
   render();rRender();qRender();showTab(S.tab);
 }
 function pafLabel(i){const p=PAF.parts[i];return (p.no||'').trim()||('Part '+(i+1))}
