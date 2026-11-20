@@ -722,6 +722,7 @@ function priceMat(cat){
   return Object.assign({},m,{kg:pk.perKg,fromLot:r[3]});
 }
 function priceSrcUI(cat){
+  if(manPc(cat)!=null)return '';   // the price per kg is not used: the piece cost is manual or the combined average
   const r=lotApplied(cat), pk=r&&lotPerKg(cat,r); if(!pk||!isFinite(pk.perKg))return '';
   const m=matSrc(cat), on=DG.lot[cat], nm='psrc-'+cat;
   return `<div class="psrc" role="radiogroup" aria-label="Price per ${MUl()} comes from"><span class="pstl">Price per ${MUl()} from</span><label title="Price list item selected above"><input type="radio" name="${nm}" value="list" ${on?'':'checked'}>Material cost · $ ${nf(PP(m.kg),2)}/${MUl()}</label><label title="Unit Cost of the Material Digger lot loaded as Feedstock, converted to $/${MUl()}"><input type="radio" name="${nm}" value="lot" ${on?'checked':''}>Digger lot ${r[3]} · $ ${nf(PP(pk.perKg),2)}/${MUl()}</label></div>`;
@@ -1405,7 +1406,7 @@ function render(){
           ${cd.map(d=>`<dt>${r.mix?'Pieces (both groups)':dn(d.id)} · ${Wu(d.kg,2)} × ${d.Q} pcs</dt><dd>${Wu(d.w,2)} <span class="pctnote" title="Demand weight ÷ total calculation weight">(${nf(calcKg?d.w/calcKg*100:0,1)}%)</span></dd>`).join('')}
           <dt>+ Weighted depreciated weight</dt><dd>${Wu(lossKg,2)} <span class="pctnote" title="Depreciated weight ÷ total calculation weight">(${nf(calcKg?lossKg/calcKg*100:0,1)}%)</span></dd>
           <dt><b>Total calculation weight</b></dt><dd><b>${Wu(calcKg,2)}</b></dd>
-          <dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(mat.kg),2)}/${MUl()}</dd>
+          ${manPc('BL')!=null?'':`<dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(mat.kg),2)}/${MUl()}</dd>`}
           <dt>Lot cost</dt><dd>${money(lotCost)}</dd>
           ${cd.map(d=>`<dt><b>Piece cost${cdual?' · '+dn(d.id):''}</b></dt><dd><b>${money(d.cost)}</b> /pc</dd>`).join('')}
           ${cd.map((d,i)=>`<dt><b>Piece cost + Extra cost${cdual?' · '+dn(d.id):''}</b></dt><dd><b data-pcx="${cdual?'b'+i:'b'}">—</b> /pc</dd>`).join('')}
@@ -1846,7 +1847,7 @@ function rRender(){
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${off&&!devOk&&!ringKgX?'— <span class="pctnote">(no table row)</span>':Wu(loss,2)+' '+pctn(loss)+(off&&!devOk?' <span class="pctnote">(excess OD stock only; Offall has no table row)</span>':'')}</dd>
           <dt><b>Total calculation weight</b></dt><dd><b>${Wu(calcKg,2)}</b></dd>
-          <dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(mat.kg),2)}/${MUl()}</dd>
+          ${manPc('RD')!=null?'':`<dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(mat.kg),2)}/${MUl()}</dd>`}
           <dt>Lot cost</dt><dd>${money(lotCost)}</dd>
           <dt><b>Piece cost</b></dt><dd><b>${money(pcCost)}</b> /pc</dd>
           <dt><b>Piece cost + Extra cost</b></dt><dd><b data-pcx="r">—</b> /pc</dd>
@@ -2043,7 +2044,7 @@ function qRender(){
           <dt>${label} · ${Wu(r.pieceKg,2)} × ${QT} pcs</dt><dd>${Wu(wP,2)} ${pctn(wP)}</dd>
           <dt>+ Weighted depreciated weight</dt><dd>${Wu(loss,2)} ${pctn(loss)}${naMsg?' <span class="pctnote">(Offall has no table row)</span>':''}</dd>
           <dt><b>Total calculation weight</b></dt><dd><b>${Wu(calcKg,2)}</b></dd>
-          <dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(priceMat('RN').kg),2)}/${MUl()}</dd>
+          ${manPc('RN')!=null?'':`<dt>Cost per ${MUl()}</dt><dd>$ ${nf(PP(priceMat('RN').kg),2)}/${MUl()}</dd>`}
           <dt>Lot cost</dt><dd id="qlot"></dd>
           <dt><b>Piece cost</b></dt><dd><b id="qpc">—</b> /pc</dd>
           <dt><b>Piece cost + Extra cost</b></dt><dd><b data-pcx="q">—</b> /pc</dd>
@@ -2315,7 +2316,7 @@ function matLow(cat){
 function matCard(cat){
   const m=matSrc(cat); if(!m||!m.d||!m.w)return '<p class="note" style="margin:6px 0 0">No dimensions / TL weight in the price list for this item.</p>';
   const dd=m.d.map(x=>Lc(x*25.4,UNIT.us?2:1)).join(' × ');
-  return `<div class="matcard" draggable="true" data-cat="${cat}" title="Drag to the Feedstock box (or double-click) to use these dimensions"><span class="lot">${m.name}</span><div class="row"><span class="meta">${m.d.length===3?'':'ø '}${dd} ${LUl()} · ${Wu(m.w*KG_LB,0)}</span><span class="uc">$ ${nf(PP(m.kg),2)}<small>/${MUl()}</small></span></div></div><p class="note">Drag this card onto the Feedstock box (or double-click it): the dimensions are filled in (the density is kept).</p>`;
+  return `<div class="matcard" draggable="true" data-cat="${cat}" title="Drag to the Feedstock box (or double-click) to use these dimensions"><span class="lot">${m.name}</span><div class="row"><span class="meta">${m.d.length===3?'':'ø '}${dd} ${LUl()} · ${Wu(m.w*KG_LB,0)}</span>${manPc(cat)!=null?'':`<span class="uc">$ ${nf(PP(m.kg),2)}<small>/${MUl()}</small></span>`}</div></div><p class="note">Drag this card onto the Feedstock box (or double-click it): the dimensions are filled in (the density is kept).</p>`;
 }
 function dgSetDens(id,kgm3){
   const el=$(id); if(!el||!(kgm3>0))return;
