@@ -146,8 +146,8 @@ final class DatasetValidator
         $src = self::s($data['source'] ?? 'Parma M Aged Report', $k, 'source', 200);
         $rows = self::lst($data['rows'] ?? null, $k, 'rows', 1, 30000);
         foreach ($rows as $r) {
-            if (!is_array($r) || !array_is_list($r) || count($r) !== 8) {
-                self::bad($k, 'row must have 8 fields');
+            if (!is_array($r) || !array_is_list($r) || (count($r) !== 8 && count($r) !== 9)) {
+                self::bad($k, 'row must have 8 or 9 fields');
             }
             if ($r[0] !== 0 && $r[0] !== 1) {
                 self::bad($k, 'row kind must be 0 or 1');
@@ -164,6 +164,9 @@ final class DatasetValidator
             self::n($r[5], $k, 'qty', 0, 1e9, false);
             self::s($r[6], $k, 'location', 80);
             self::n($r[7], $k, 'unit cost', 0, 1e12);
+            if (count($r) === 9) {   // time in stock: 0 unknown, 1 under 1 year, 2 over 1, 3 over 2, 4 over 3 years
+                self::n($r[8], $k, 'aging period', 0, 4);
+            }
         }
         return ['source' => $src, 'rows' => $rows];
     }
