@@ -288,6 +288,12 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .mfban span{font-family:var(--font-num);word-break:break-word}.mfban small{color:var(--fg-muted)}
 .mfban .mfrev{justify-self:start;font-size:12px;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);border-radius:var(--radius);padding:4px 10px;cursor:pointer}
 .mf-on .in .field,.mf-on .in .fields{opacity:.45}
+.dg li.age1,.dg li.age2{background:rgba(46,158,91,.14)}.dg li.age3{background:rgba(230,180,30,.20)}.dg li.age4{background:rgba(160,110,60,.24)}
+.dg li .agetag{float:right;font-size:10px;letter-spacing:.03em;padding:1px 6px;border-radius:999px;border:1px solid var(--line-strong);color:var(--fg-muted);background:var(--surface);margin-left:6px}
+.dg .dgage{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 2px;font-size:11px;color:var(--fg-muted)}
+.dg .agechip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;border:1px solid var(--line-strong);cursor:pointer;color:var(--fg)}
+.dg .agechip.age1,.dg .agechip.age2{background:rgba(46,158,91,.14)}.dg .agechip.age3{background:rgba(230,180,30,.20)}.dg .agechip.age4{background:rgba(160,110,60,.24)}
+.dg .agechip input{margin:0}
 .dg .none{font-size:12px;color:var(--fg-muted);padding:4px 0}
 
 .dg>header{cursor:pointer;user-select:none}
@@ -832,6 +838,7 @@ function mfBanner(cat){
 const esc2=x=>String(x==null?'':x).replace(/[&<>"'`]/g,c=>'&#'+c.charCodeAt(0)+';');
 /* ---- Combination of lots: several different lots (Nominal and/or Offall) together cover the pieces asked. Each lot gets its share of pieces;
    every share goes through the whole calculation (placement, cuts, depreciation) with that lot as the Feedstock. Cost only: it is not loaded into the Feedstock box. ---- */
+const AGE_SHORT=['','Under 1y','Over 1y','Over 2y','Over 3y'];
 const inCombo=(cat,i)=>((DG.combo||{})[cat]||[]).some(x=>x.i===i);
 function dgComboToggle(cat,i){
   DG.combo=DG.combo||{}; const L=DG.combo[cat]=DG.combo[cat]||[], at=L.findIndex(x=>x.i===i);
@@ -921,6 +928,8 @@ function dgUpdate(cat,spec){
     if(DG.fam[cat]&&r[4]!==DG.fam[cat])return;
     const v=dgFit(cat,spec,r); if(v!=null)best[r[0]].push({r,v,i:DIGGER_DATA.indexOf(r)});
   });
+  DG.age=DG.age||{}; const hasAge=DIGGER_DATA.some(r=>r[8]>0);   // Offall only: filter by time in stock (Aging Period of the report)
+  if(hasAge)best[1]=best[1].filter(x=>DG.age[x.r[8]||0]!==false);
   const prefCL=cat!=='BL'&&!!$((cat==='RD'?'r':'q')+'Collar').checked;   // Collar ticked in the Feedstock: collars come first
   const isCL=x=>x.r[1]==='CL'?0:1;
   best.forEach(a=>a.sort((x,y)=>(prefCL?isCL(x)-isCL(y):0)||x.v-y.v||y.r[5]-x.r[5]));
@@ -929,16 +938,18 @@ function dgUpdate(cat,spec){
   const qtyOf=r=>r[0]===1?Wu(r[5]*0.45359237,0):`${r[5]} pcs`;
   const availOf=r=>r[0]===1?1:r[5];
   const shortOf=(r,N)=>N>availOf(r)?`<span class="dgshort">Available (${availOf(r)} pc${availOf(r)>1?'s':''}) is less than demanded (${N} pcs)</span>`:'';
-  const liOf=({r,v,i,N,cost},col)=>`<li draggable="true" class="${inCombo(cat,i)?'inc':''}" data-i="${i}" title="Click to compare its cost · drag to the Feedstock box (or double-click) to use these dimensions" style="--c:var(${col})"><span class="lot"><span class="fill" title="Whole order ÷ volume of the Feedstock pieces it needs">${nf(Math.min(100,spec.vol/(v*(N||1))*100),0)}%</span>${r[3]}</span><div class="row"><span class="meta">${r[1]==='CL'?'Collar · ':''}${dgSize(r)} ${LUl()} · ${qtyOf(r)}${r[6]?' · '+r[6]:''}</span>${ucOf(r)}<button type="button" class="dgadd" title="Add this lot to the combination" aria-label="Add this lot to the combination">${inCombo(cat,i)?'✓':'+'}</button></div>${isFinite(cost)?`<span class="dgpc" title="Cost of one demanded piece with this lot as the Feedstock: whole calculation (placement, cutting sequence, depreciation) × Unit Cost">Piece cost <b>$ ${nf(cost,2)}</b></span>`:''}${N?shortOf(r,N):''}</li>`;
+  const liOf=({r,v,i,N,cost},col)=>`<li draggable="true" class="${inCombo(cat,i)?'inc ':''}${r[8]>0?'age'+r[8]:''}" data-i="${i}" title="Click to compare its cost · drag to the Feedstock box (or double-click) to use these dimensions" style="--c:var(${col})"><span class="lot">${r[8]>0?`<span class="agetag" title="Time in stock (Aging Period)">${AGE_SHORT[r[8]]}</span>`:''}<span class="fill" title="Whole order ÷ volume of the Feedstock pieces it needs">${nf(Math.min(100,spec.vol/(v*(N||1))*100),0)}%</span>${r[3]}</span><div class="row"><span class="meta">${r[1]==='CL'?'Collar · ':''}${dgSize(r)} ${LUl()} · ${qtyOf(r)}${r[6]?' · '+r[6]:''}</span>${ucOf(r)}<button type="button" class="dgadd" title="Add this lot to the combination" aria-label="Add this lot to the combination">${inCombo(cat,i)?'✓':'+'}</button></div>${isFinite(cost)?`<span class="dgpc" title="Cost of one demanded piece with this lot as the Feedstock: whole calculation (placement, cutting sequence, depreciation) × Unit Cost">Piece cost <b>$ ${nf(cost,2)}</b></span>`:''}${N?shortOf(r,N):''}</li>`;
   DG.open=DG.open||{}; DG.combo=DG.combo||{}; DG.qtot=DG.qtot||{}; DG.qtot[cat]=spec.Q;
   { const k=dgDemKey(cat); DG.ckey=DG.ckey||{}; if(DG.ckey[cat]!==k){DG.ckey[cat]=k; DG.combo[cat]=[]} }
-  const sec=(k,title,a,col)=>`<details class="dgsec" data-k="${k}" ${DG.open[cat+k]?'open':''}><summary><span>${title}</span><b class="cnt">${a.length} fit</b></summary>${a.length?`<ol class="dglist" data-k="${k}">${a.map(x=>liOf(x,col)).join('')}</ol>`:'<div class="none">No stock can make even 1 piece.</div>'}</details>`;
+  const ageUI=k=>k==='O'&&hasAge?`<div class="dgage" role="group" aria-label="Offall time in stock"><span>Time in stock</span>${[1,2,3,4].map(n=>`<label class="agechip age${n}"><input type="checkbox" data-age="${n}" ${DG.age[n]===false?'':'checked'}>${AGE_SHORT[n]}</label>`).join('')}</div>`:'';
+  const sec=(k,title,a,col)=>`<details class="dgsec" data-k="${k}" ${DG.open[cat+k]?'open':''}><summary><span>${title}</span><b class="cnt">${a.length} fit</b></summary>${ageUI(k)}${a.length?`<ol class="dglist" data-k="${k}">${a.map(x=>liOf(x,col)).join('')}</ol>`:'<div class="none">No stock can make even 1 piece.</div>'}</details>`;
   box.innerHTML=`<div class="dgrow"><label for="dg-${cat}-fam">Material</label><select id="dg-${cat}-fam"><option value="">All</option>${fams.map(f=>`<option ${f===DG.fam[cat]?'selected':''}>${f}</option>`).join('')}</select></div>
     <div class="dgv">Stock that can make at least 1 piece of ${DG_CAT[cat]}${spec.rows?`<ul class="dgvl">${spec.rows.map((x,k)=>`<li>${x.lab?x.lab+': ':''}${x.dim} ${LUl()} × ${x.q} pcs</li>`).join('')}</ul>`:` <b>${spec.txt}</b>`}</div>
     <div class="dgnote">Once checked, cards are ordered by the cost of the demanded piece (whole calculation: yield, cutting sequence, depreciation), cheapest first.</div>
     ${sec('N','Nominal',best[0],'--nominal')}${sec('O','Offall',best[1],'--off1')}
     <div class="dgcombo" aria-live="polite"></div><div class="dgcmp" aria-live="polite"></div>`;
   const fit5=()=>box.querySelectorAll('details.dgsec[open] ol.dglist').forEach(ol=>{const li=[...ol.children].slice(0,5); if(!li.length||!li[0].offsetHeight)return; const h=li.reduce((t,x)=>t+x.offsetHeight,0)+(li.length-1)*6; ol.style.maxHeight=(h+2)+'px'});
+  box.querySelectorAll('input[data-age]').forEach(i=>i.addEventListener('change',()=>{DG.age[i.dataset.age]=i.checked; DG.open[cat+'O']=true; dgUpdate(cat,DG.last[cat])}));
   box.querySelectorAll('details.dgsec').forEach(d=>d.addEventListener('toggle',()=>{DG.open[cat+d.dataset.k]=d.open; fit5()}));
   fit5();
   /* Every candidate is checked with the full calculation (placement, cuts, depreciation) in the background, in small slices so typing stays smooth: lots that cannot make even 1 piece disappear, and each card learns how many of its pieces the order needs. */
