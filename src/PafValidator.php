@@ -70,6 +70,55 @@ final class PafValidator
         return ['number' => $number, 'customer' => $customer, 'created_on' => $date, 'payload' => ['description' => self::str($b['description'] ?? '', 'Description', 0, 120), 'parts' => $clean]];
     }
 
+    /** PAF v2 document: {meta, quote:{parts,frozen}|null, prod|null}. Stored as payload {v:2, meta, quote, prod}; meta also goes to the list column. */
+    public static function pafV2(array $b): array
+    {
+        $v = $b['v2'] ?? null;
+        if (!is_array($v) || !is_array($v['meta'] ?? null)) {
+            Http::error(422, 'Invalid PAF document');
+        }
+        $meta = $v['meta'];
+        $number = self::str($meta['no'] ?? null, 'PAF #', 1, 40);
+        $customer = self::str($meta['cust'] ?? '', 'Customer', 0, 80);
+        $date = (string) ($meta['date'] ?? '');
+        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (!$d || $d->format('Y-m-d') !== $date) {
+            Http::error(422, 'Created date is invalid');
+        }
+        if (!in_array($meta['status'] ?? null, ['draft', 'quoted', 'po', 'review', 'op'], true)) {
+            Http::error(422, 'Invalid status');
+        }
+        $quote = $v['quote'] ?? null;
+        if ($quote !== null) {
+            $qp = is_array($quote) ? ($quote['parts'] ?? null) : null;
+            if (!is_array($qp) || !array_is_list($qp) || count($qp) < 1 || count($qp) > 50) {
+                Http::error(422, 'A PAF needs between 1 and 50 parts');
+            }
+        }
+        $prod = $v['prod'] ?? null;
+        if ($prod !== null && (!is_array($prod) || !is_array($prod['parts'] ?? null) || count($prod['parts']) > 50)) {
+            Http::error(422, 'Invalid production data');
+        }
+        $meta['no'] = $number;
+        $meta['cust'] = $customer;
+        self::scan($meta);
+        self::scan($quote);
+        self::scan($prod);
+        return [
+            'number' => $number,
+            'customer' => $customer,
+            'created_on' => $date,
+            'meta' => $meta,
+            'payload' => ['v' => 2, 'description' => self::str($meta['desc'] ?? '', 'Description', 0, 120), 'meta' => $meta, 'quote' => $quote, 'prod' => $prod],
+        ];
+    }
+
+    /** Legacy (v1) or v2 body. */
+    public static function any(array $b): array
+    {
+        return array_key_exists('v2', $b) ? self::pafV2($b) : self::paf($b);
+    }
+
     public static function uuid(string $s): string
     {
         if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $s)) {

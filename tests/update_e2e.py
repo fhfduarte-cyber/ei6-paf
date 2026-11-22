@@ -36,7 +36,7 @@ with sync_playwright() as p:
     pg.reload(); pg.wait_for_timeout(800)
     d = pg.evaluate("() => { const d = JSON.parse(document.getElementById('ei6-data').textContent); return {n: d.prices_blocks.length, r: d.prices_rods.length, q: d.prices_rounds.length, p: d.parma_stock.rows.length, s: d.devaluation.source}; }")
     check('tool now runs on the uploaded data', d['n'] == 34 and d['r'] == 57 and d['q'] == 28 and d['p'] == 1339 and d['s'] == 'dev.xlsx', d)
-    pg.click('#pafnav button[data-pg="0"]'); pg.wait_for_timeout(400)
+    pg.click('button[data-ls=new]'); pg.wait_for_timeout(400); pg.click('#pafnav button[data-pg="0"]'); pg.wait_for_timeout(400)
     check('button is hidden inside a part calculator', not pg.is_visible('#upd-open'))
     pg.click('#pafnav button[data-pg="-1"]'); pg.wait_for_timeout(300)
     check('button is back on the PAF page', pg.is_visible('#upd-open'))

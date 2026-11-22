@@ -6,7 +6,7 @@ namespace Ei6;
 /** PAF + dataset endpoints. Authorization is enforced by Postgres RLS using the caller's own JWT. */
 final class Pafs
 {
-    private const COLS = 'id,number,customer,created_on,version,updated_at,created_at';
+    private const COLS = 'id,number,customer,created_on,version,updated_at,created_at,meta';
     private const EMBED = ',creator:profiles!pafs_created_by_fkey(email),updater:profiles!pafs_updated_by_fkey(email)';
 
     private static function shape(array $r): array
@@ -20,6 +20,9 @@ final class Pafs
     public static function list(Session $s): never
     {
         [$st, $rows] = Supabase::rest('GET', 'pafs?select=' . self::COLS . self::EMBED . '&order=updated_at.desc&limit=300', (string) $s->token);
+        if ($st !== 200) {   // migration 0006 (column "meta") not applied yet: list the PAFs without it
+            [$st, $rows] = Supabase::rest('GET', 'pafs?select=' . str_replace(',meta', '', self::COLS) . self::EMBED . '&order=updated_at.desc&limit=300', (string) $s->token);
+        }
         if ($st !== 200 || !is_array($rows)) {
             Http::error(502, 'Could not list PAFs');
         }
@@ -29,6 +32,9 @@ final class Pafs
     public static function get(Session $s, string $id): never
     {
         [$st, $rows] = Supabase::rest('GET', 'pafs?select=' . self::COLS . ',payload' . self::EMBED . '&id=eq.' . $id, (string) $s->token);
+        if ($st !== 200) {
+            [$st, $rows] = Supabase::rest('GET', 'pafs?select=' . str_replace(',meta', '', self::COLS) . ',payload' . self::EMBED . '&id=eq.' . $id, (string) $s->token);
+        }
         if ($st !== 200 || !is_array($rows) || count($rows) !== 1) {
             Http::error(404, 'Not found');
         }
@@ -37,13 +43,13 @@ final class Pafs
 
     public static function create(Session $s): never
     {
-        $v = PafValidator::paf(Http::body());
+        $v = PafValidator::any(Http::body());
         [$st, $rows] = Supabase::rest('POST', 'pafs?select=' . self::COLS, (string) $s->token, $v, ['Prefer' => 'return=representation']);
         if ($st === 409) {
             Http::error(409, 'A PAF with this number already exists');
         }
         if ($st !== 201 || !is_array($rows) || count($rows) !== 1) {
-            Http::error($st === 403 ? 403 : 502, 'Could not save the PAF');
+            Http::error($st === 403 ? 403 : 502, $st === 400 ? 'Could not save the PAF. Run supabase/migrations/0006_paf_v2.sql in the Supabase SQL editor.' : 'Could not save the PAF');
         }
         Http::json($rows[0], 201);
     }
@@ -56,13 +62,13 @@ final class Pafs
         if (!is_int($ver) || $ver < 1) {
             Http::error(422, 'version is required');
         }
-        $v = PafValidator::paf($b);
+        $v = PafValidator::any($b);
         [$st, $rows] = Supabase::rest('PATCH', 'pafs?select=' . self::COLS . '&id=eq.' . $id . '&version=eq.' . $ver, (string) $s->token, $v, ['Prefer' => 'return=representation']);
         if ($st === 409) {
             Http::error(409, 'A PAF with this number already exists');
         }
         if ($st !== 200 || !is_array($rows)) {
-            Http::error(502, 'Could not save the PAF');
+            Http::error(502, $st === 400 ? 'Could not save the PAF. Run supabase/migrations/0006_paf_v2.sql in the Supabase SQL editor.' : 'Could not save the PAF');
         }
         if (count($rows) !== 1) {
             Http::error(409, 'This PAF was changed by someone else. Reload it before saving.');

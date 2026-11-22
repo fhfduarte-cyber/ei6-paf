@@ -1,7 +1,7 @@
 <title>PAF tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
 <style nonce="{{NONCE}}">
 /* Layout: barra lateral de entradas fixa à esquerda; à direita só resultados (3D, sequência de corte, Offall, Devaluation).
    Paleta Ei6: tokens abaixo são provisórios. Substituir pelos valores do guia Ei6 em um único lugar. */
@@ -395,6 +395,7 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 @media (max-width:520px){.pafgrid{grid-template-columns:1fr}}
 .pafgrid input,.paftab input{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--fg);padding:8px;font:inherit}
 .pafgrid input:focus,.paftab input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
+
 .paftab{width:100%;border-collapse:separate;border-spacing:0 6px}
 .paftab th{text-align:left;font-size:12px;color:var(--fg-muted);font-weight:500;padding:0 4px}
 .paftab td{padding:0 4px}.paftab td:first-child{width:32%}.paftab td:nth-child(2),.paftab td:nth-child(3){width:17%}
@@ -408,6 +409,174 @@ select{background:var(--surface-2);color:var(--fg);border:1px solid var(--line-s
 .pbtn.go{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
 .pbtn:disabled{opacity:.5;cursor:default}
 .pafact .msg{font-size:12px;color:var(--fg-muted)}.pafact .msg.ok{color:var(--brand)}
+/* Ei6 brand guide v1.0: Manrope (headings) + Source Sans 3 (body); #1E4860 / #6997AD / #BCD1C6; neutrals #FFFFFF #E8EBEB #161C29 */
+:root{
+  --font-ui:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-num:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-head:"Manrope","Source Sans 3",system-ui,sans-serif;
+  --bg:#E8EBEB; --surface:#ffffff; --surface-2:#f3f5f5; --line:#d6dcdc; --line-strong:#b3bfc2;
+  --fg:#161C29; --fg-muted:#566170;
+  --brand:#1E4860; --brand-ink:#ffffff; --brand-soft:#e3ede8;
+  --accent:#BCD1C6; --secondary:#6997AD;
+  --nominal:#1E4860; --nominal-fill:rgba(30,72,96,.10);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#161C29; --surface:#1e2636; --surface-2:#243044; --line:#2f3d52; --line-strong:#43546d;
+  --fg:#E8EBEB; --fg-muted:#9fb0bd;
+  --brand:#6997AD; --brand-ink:#161C29; --brand-soft:#243a4a;
+  --nominal:#6997AD; --nominal-fill:rgba(105,151,173,.14);}}
+:root[data-theme="dark"]{
+  --bg:#161C29; --surface:#1e2636; --surface-2:#243044; --line:#2f3d52; --line-strong:#43546d;
+  --fg:#E8EBEB; --fg-muted:#9fb0bd;
+  --brand:#6997AD; --brand-ink:#161C29; --brand-soft:#243a4a;
+  --nominal:#6997AD; --nominal-fill:rgba(105,151,173,.14)}
+.top h1,.card>header h2,.rpt-dlg header h2,.parttitle b,.fh,.mb-no,.fc-box,.mark{font-family:var(--font-head)}
+.top h1{font-weight:600}.card>header h2{font-weight:500;letter-spacing:.08em}
+/* v2: shared PAFs, locked quote, production mode */
+#modebar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;margin:0 0 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+#modebar .mb-l,#modebar .mb-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#modebar .mb-no{font-weight:600;font-size:15px}
+.mb-d{font-size:12px;color:var(--fg-muted)}.mb-d.bad{color:var(--bad)}
+.chip{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600;background:var(--brand-soft);color:var(--brand);white-space:nowrap}
+.chip.st-quoted,.chip.st-po{background:var(--good-bg);color:var(--good)}
+.chip.st-review{background:var(--warn-bg);color:var(--warn)}
+.chip.st-op{background:var(--brand);color:var(--brand-ink)}
+.seg2{display:flex;border:1px solid var(--line-strong);border-radius:var(--radius);overflow:hidden}
+.seg2 button{all:unset;box-sizing:border-box;cursor:pointer;padding:6px 14px;font-size:12px;font-weight:600;color:var(--fg-muted);background:var(--surface)}
+.seg2 button[aria-pressed=true]{background:var(--brand);color:var(--brand-ink)}
+.seg2 button:disabled{opacity:.45;cursor:not-allowed}
+.seg2 button:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+#paflist[hidden]{display:none!important}
+#paflist,#pafflow{display:flex;flex-direction:column;gap:14px}
+#pafflow:empty{display:none}
+.flowb{display:flex;flex-direction:column;gap:12px}
+.flowb .field{min-width:0}
+.flowb input[type=text],.flowb input[type=search],#paflist input[type=search]{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--fg);padding:8px;font:inherit}
+.flowb .pafact,#paflist .pafact{align-items:flex-end}
+table.ft{width:100%;border-collapse:collapse;font-size:13px}
+table.ft th,table.ft td{padding:7px 10px;vertical-align:top;white-space:normal}
+table.ft td small{display:block;color:var(--fg-muted);font-size:11px}
+table.ft tr.sel td{background:var(--brand-soft)}
+table.ft input[type=radio]{accent-color:var(--brand);width:16px;height:16px}
+.fh{margin:8px 0 0;font-size:14px}.fh span{font-weight:400;color:var(--fg-muted);font-size:13px;margin-left:6px}
+.hist{margin:0;padding-left:18px;font-size:13px;display:grid;gap:3px}
+.pafact .msg.bad,.mb-d.bad{color:var(--bad)}
+.scbar{display:flex;flex-direction:column;gap:8px;padding:10px 14px;margin:0 0 12px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:var(--radius);font-size:13px}
+.scbar[hidden]{display:none!important}
+.scbar.lockbar{border-left-color:var(--warn);background:var(--warn-bg);color:var(--fg)}
+.sc-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sc-k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-muted);margin-right:4px}
+.scchip{font:inherit;font-size:12px;font-weight:500;padding:4px 12px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-2);color:var(--fg);cursor:pointer}
+.scchip.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.scchip.add{border-style:dashed;color:var(--brand)}
+.sc-edit{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sc-edit input,.sc-edit select{font:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--fg)}
+.sc-edit input[data-scf=name]{width:150px}.sc-edit input.wide{flex:1 1 260px;min-width:0}
+.scdel{font:inherit;font-size:12px;padding:5px 10px;border:1px solid var(--bad);border-radius:var(--radius);background:var(--surface);color:var(--bad);cursor:pointer}
+.sc-delta{font-size:12px;color:var(--fg-muted)}.sc-delta b{color:var(--fg);font-family:var(--font-num)}
+.drift{color:var(--warn);font-weight:600}
+body.prod{--brand:#161C29;--brand-ink:#ffffff;--brand-soft:#e3ede8}
+@media (prefers-color-scheme:dark){body.prod{--brand:#BCD1C6;--brand-ink:#161C29;--brand-soft:#243a4a}}
+body.prod #modebar{background:#161C29;border-color:#161C29;color:#fff}
+body.prod #modebar .mb-d{color:#BCD1C6}
+body.prod #modebar .chip{background:#BCD1C6;color:#161C29}
+body.prod #modebar .pbtn:not(.go){background:transparent;color:#fff;border-color:#6997AD}
+body.prod #modebar .seg2{border-color:#6997AD}
+body.prod #modebar .seg2 button{background:transparent;color:#BCD1C6}
+body.prod #modebar .seg2 button[aria-pressed=true]{background:#BCD1C6;color:#161C29}
+body.prod #modebar .pbtn.go{background:#BCD1C6;color:#161C29;border-color:#BCD1C6}
+body.ro #calc .side{opacity:.72}
+body.ro #calc .cost{opacity:.85}
+.mfin.prodv .mg{display:none}
+.mfin.prodv input:disabled,.mfin.prodv select:disabled{opacity:.85;cursor:not-allowed}
+#modebar .ret{padding:6px 12px;font-size:12px}
+.flowchart{display:flex;align-items:flex-end;flex-wrap:wrap;gap:0;padding:8px 0 4px;overflow-x:auto}
+.fc-box{min-height:64px;display:flex;flex-direction:column;justify-content:center;border:2px solid var(--secondary);border-radius:6px;padding:12px 20px;min-width:150px;text-align:center;font-size:15px;font-weight:600;background:var(--surface);color:var(--brand);white-space:nowrap;align-self:flex-end}
+.fc-box.cur{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.fc-box.done{background:var(--accent);border-color:var(--accent);color:#1E4860}
+.fc-box.done .fc-t::before{content:'✓ ';font-weight:700}
+.fc-box .fc-t{display:block}
+.fc-box small{display:block;font-family:var(--font-ui);font-size:11px;font-weight:400;opacity:.85;margin-top:2px}
+.fc-box small.stale{font-weight:600;opacity:1;color:#8a5a00}
+.fc-box.cur small{opacity:.9}
+.fc-btn:disabled{opacity:.4;cursor:not-allowed}
+.fc-sec{margin:8px 0 0;padding-top:14px;border-top:1px dashed var(--line-strong);font-family:var(--font-head);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-muted)}
+.fc-edge{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;min-width:130px;padding:0 4px}
+.fc-lbl{font-family:var(--font-head);font-size:14px;font-weight:500;color:var(--fg);text-align:center}.fc-lbl small{display:block;font-family:var(--font-ui);font-size:11px;font-weight:400;color:var(--fg-muted)}.fc-lbl.ok{color:var(--brand);font-weight:600}
+.fc-arrow{display:block;position:relative;height:2px;width:100%;background:var(--secondary);margin:0 0 22px}
+.fc-arrow::after{content:'';position:absolute;right:-1px;top:-5px;border-left:9px solid var(--secondary);border-top:6px solid transparent;border-bottom:6px solid transparent}
+.fc-btn{font-family:var(--font-head);font-size:12.5px;font-weight:600;padding:7px 14px;border:1.5px solid var(--brand);border-radius:6px;background:var(--surface);color:var(--brand);cursor:pointer;white-space:nowrap}
+.fc-btn:hover{background:var(--brand-soft)}
+.fc-btn.go{background:var(--brand);color:var(--brand-ink)}.fc-btn.go:hover{filter:brightness(1.12)}
+.fc-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.rpt-dlg .hint{position:static;right:auto;bottom:auto}
+#paflist{gap:24px;padding-top:8px}
+.homehead{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:8px 4px 0}
+.homehead .hh{margin:0;font-family:var(--font-head);font-size:26px;font-weight:600;color:var(--brand)}
+.homehead .hs{margin:4px 0 0;color:var(--fg-muted);font-size:15px}
+.pbtn.newbtn{padding:13px 26px;font-family:var(--font-head);font-size:15px;font-weight:600}
+.lsbody{padding:20px 22px 24px}
+.lstools{display:flex;align-items:center;gap:14px;margin:0 0 18px}
+.lstools input[type=search]{max-width:420px;width:100%;padding:10px 12px}
+table.lst th,table.lst td{padding:14px 14px;vertical-align:middle}
+table.lst tbody tr:hover td{background:var(--surface-2)}
+.lsempty{padding:36px 14px!important;text-align:center;color:var(--fg-muted)}
+.mb-id{display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap}
+.mb-k{font-family:var(--font-head);font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
+.mb-cust{font-weight:600}
+.flt th{padding:4px 10px 10px;font-weight:400;text-transform:none;letter-spacing:0}
+.flt input,.flt select{width:100%;min-width:70px;padding:6px 8px;font-size:12px}
+.flt input.r{text-align:right}
+.flt .pbtn{padding:5px 10px;font-size:12px}
+table.lst tfoot td{padding:14px;border-top:2px solid var(--line-strong)}
+.thw{display:inline-flex;align-items:center;gap:6px}
+.srt{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;padding:2px 0}
+.srt:hover,.srt:focus-visible{color:var(--primary)}
+.srt .ar{font-style:normal;font-size:9px;opacity:.5}
+th[aria-sort=ascending] .ar,th[aria-sort=descending] .ar{opacity:1;color:var(--primary)}
+.fbt{all:unset;cursor:pointer;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:5px;color:var(--fg-muted)}
+.fbt:hover,.fbt:focus-visible{background:var(--surface-2);color:var(--primary)}
+.fbt.on{background:var(--accent,#BCD1C6);color:var(--primary)}
+.lspop{position:fixed;z-index:60;width:230px;background:#fff;border:1px solid var(--line-strong);border-radius:8px;box-shadow:0 8px 24px rgba(22,28,41,.18);padding:12px;display:flex;flex-direction:column;gap:8px;text-transform:none;letter-spacing:0}
+.lspop b{font-family:var(--font-head);font-size:12px;font-weight:600;color:var(--primary)}
+.lspop input,.lspop select{width:100%;padding:8px 10px;font-size:13px}
+.lspa{display:flex;justify-content:flex-end}
+.pbtn.dng{color:#9b2c2c;border-color:#d9b3b3}
+.pbtn.dng:hover,.pbtn.dng:focus-visible{background:#9b2c2c;color:#fff;border-color:#9b2c2c}
+table.lst td.r{white-space:nowrap}
+.mfnote{margin:8px 0;padding:8px 10px;border-left:3px solid var(--secondary);background:var(--accent-soft,#E8EFEA);font-size:12.5px;line-height:1.4;color:var(--fg)}
+.mfrev.mfpulse{outline:2px solid var(--secondary);outline-offset:2px;background:#E8EFEA}
+.proc{display:flex;align-items:flex-start;gap:0;margin:0 6px}
+.proc .pst{display:flex;flex-direction:column;align-items:center;gap:5px}
+.proc button{all:unset;box-sizing:border-box;cursor:pointer;padding:7px 16px;font-size:12.5px;font-weight:600;border:1px solid var(--line-strong);border-radius:var(--radius);color:var(--fg-muted);background:var(--surface)}
+.proc button[aria-pressed=true]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.proc button:disabled{opacity:.45;cursor:not-allowed}
+.proc button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.proc .parr{margin:10px 12px 0;flex:none}
+.parr .s0{stop-color:#6997AD}.parr .s1{stop-color:#1E4860}
+.parr .pdot{fill:#6997AD}.parr .pline{stroke:url(#parg);stroke-width:2;stroke-linecap:round;stroke-dasharray:1 5}.parr.done .pline{stroke-dasharray:none}
+.parr .phead{fill:#1E4860;stroke:#1E4860;stroke-width:1.5;stroke-linejoin:round}
+.parr.done .pdot{fill:#1E4860}
+.proc small{font-size:10.5px;letter-spacing:.02em;color:var(--fg-muted);white-space:nowrap}
+.proc small.ok{color:var(--brand)}
+.proc small.ok::before{content:'✓ '}
+body.prod #modebar .proc button{background:transparent;color:#BCD1C6;border-color:#6997AD}
+body.prod #modebar .proc button[aria-pressed=true]{background:#BCD1C6;color:#161C29;border-color:#BCD1C6}
+body.prod #modebar .proc small{color:#9FB8C4}
+body.prod #modebar .proc small.ok{color:#BCD1C6}
+body.prod #modebar .parr .s0{stop-color:#6997AD}body.prod #modebar .parr .s1{stop-color:#BCD1C6}body.prod #modebar .parr .pdot{fill:#6997AD}body.prod #modebar .parr .phead{fill:#BCD1C6;stroke:#BCD1C6}body.prod #modebar .parr.done .pdot{fill:#BCD1C6}
+.pafgrid{grid-template-columns:minmax(0,.8fr) minmax(0,1.4fr) minmax(0,2fr) minmax(0,.9fr) minmax(0,.9fr)}
+@media (max-width:900px){.pafgrid{grid-template-columns:1fr 1fr}}
+@media (max-width:520px){.pafgrid{grid-template-columns:1fr}}
+.fc-edge small{display:block;text-align:center;font-size:11px;color:var(--fg-muted);margin-top:2px}
+.fc-sent{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--fg-muted);margin-top:4px}
+.fc-sent input{font:inherit;font-size:12px;padding:3px 6px;border:1px solid #6997AD;border-radius:6px;background:#fff;color:#161C29}
+.fc-sent input:disabled{opacity:.5}
+.fc-lnk{background:none;border:0;padding:0;font:inherit;font-size:11px;color:#6997AD;text-decoration:underline;cursor:pointer}
+.fc-edge2{position:relative;justify-content:flex-end}
+.fc-below{position:absolute;top:100%;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:6px}
+.fc-r1{padding-bottom:64px!important;overflow:visible!important}
+.fc-sent{font-size:inherit!important;color:inherit!important;gap:4px!important}
 </style>
 
 <script type="application/json" id="ei6-data">{{DATA_JSON}}</script>
@@ -2288,13 +2457,18 @@ function mchFin(k){
     el.addEventListener('change',e=>{const f=e.target.dataset.f;if(f==='pk'){m.pk=e.target.value;m.po='';const so=el.querySelector('select[data-f=po]');if(m.pk!==''){so.length=1;PACKS()[+m.pk].opts.forEach((o,i)=>so.add(new Option(o.lab,i)))}qtUpd(el,k)}else if(f==='po'){m.po=e.target.value;qtUpd(el,k)}});
     el.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('[data-guide]'))packGuide(k);else if(e.target.closest&&e.target.closest('[data-lead]'))leadGuide()});
     }
-  el.querySelector('.mgt').innerHTML=P.length?P.map(tab).join(''):'';
+  const prodv=window.__PRODMODE===true;
+  el.querySelector('.mgt').innerHTML=(P.length&&!prodv)?P.map(tab).join(''):'';
+  el.classList.toggle('prodv',prodv);
+  el.querySelectorAll('[data-f=qq],[data-f=qp],[data-f=pk],[data-f=po],[data-f=pn]').forEach(x=>{x.disabled=prodv});
+  {const fn=el.querySelector('.fnote');if(fn){if(fn.dataset.o===undefined)fn.dataset.o=fn.textContent;fn.textContent=prodv?'Production: quantity, price and packaging come from the locked quote. Final margin = 1 − (material + machining at the quoted quantity + packaging) ÷ price per piece.':fn.dataset.o}}
   qtUpd(el,k);
 }
 function mchRes(root,k){
   const m=mchSt(k), rate=parseFloat(m.rate)||0, usd2=n=>'$ '+nf(n,2);
   const cost=(r,n)=>mchStep(rate,r,n);
-  const qs=m.q.map(q=>parseFloat(q)>0?parseFloat(q):0);
+  let qs=m.q.map(q=>parseFloat(q)>0?parseFloat(q):0);
+  if(window.__PRODMODE===true){const q0=parseFloat(m.qq);qs=[q0>0?q0:0];const th=root.querySelector('table.res thead tr');if(th)th.innerHTML='<th>Cost per pc</th><th class="r">'+(q0>0?q0+' pcs · quoted':'Quoted qty')+'</th>'}
   root.querySelector('table.res tbody').innerHTML=m.steps.map((r,i)=>`<tr><td>${r.s||'Step '+(i+1)}</td>${qs.map(n=>`<td class="r num">${n?usd2(cost(r,n)):'—'}</td>`).join('')}</tr>`).join('');
   root.querySelector('table.res tfoot').innerHTML=`<tr><td>Total per pc</td>${qs.map(n=>`<td class="r num">${n?usd2(mchTotAt(k,n)):'—'}</td>`).join('')}</tr>`;
   mchFin(k);
@@ -2524,7 +2698,7 @@ function rWithWeight(k,fn){
 const XC={brand:'FF16407A',brand2:'FF2F66A8',ink:'FFFFFFFF',soft:'FFE3ECF8',line:'FFD9E0EA',fg:'FF16212F',mut:'FF5B6B80',s2:'FFF6F8FB',
   off:{'--off1':'FFB07D0A','--off2':'FF168073','--off3':'FF685CC4','--off4':'FFAA3474','--off5':'FF5A687A','--demand2':'FFB4530A','--demand':'FFBE2824','--nominal':'FF1F6FD1'}};
 async function pafAddSheet(wb,k,mk,meta,sheetName){
-  const paf=meta.paf;
+  const paf=meta.paf, OPXS=window.__OPX===true;
   const main=rMain(k), tabName={blocks:'Blocks',rods:'Rods',rounds:'Rounds'}[k];
   const mbox=document.querySelector(`.mfin[data-k="${mk}"]`), partName=(mbox&&mbox.dataset.t)||'';
   const M=mchSt(mk), PM=((window.__MCHP||{})[mk]||[])[0], mat=PM&&isFinite(PM.c)?PM.c:NaN;
@@ -2638,7 +2812,7 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
 
   /* 5 */
   band('5  Machining cost', partName);
-  const FX=omSt(k).on||M.out, rate=parseFloat(M.rate)||0, qs=FX?[parseFloat(M.qq)>0?parseFloat(M.qq):0]:M.q.map(q=>parseFloat(q)>0?parseFloat(q):0), opv=mcOp(mk);
+  const FX=omSt(k).on||M.out, rate=parseFloat(M.rate)||0, qs=(FX||OPXS)?[parseFloat(M.qq)>0?parseFloat(M.qq):0]:M.q.map(q=>parseFloat(q)>0?parseFloat(q):0), opv=mcOp(mk);
   let RATE,SU,TT,TOT,qh;
   const MO=omSt(k).on;
   if(M.out||MO){
@@ -2675,6 +2849,7 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
   const mg=parseFloat(M.mg), mgOk=isFinite(mg)&&mg<100;
   const startBlue=y;
   blueRow(y,24);put(y,X0,X1,'FINAL PRICE'+(partName?'  ·  '+partName:''),{color:XC.ink,b:true,sz:12,wrap:false,ind:1});y++;
+  if(!OPXS){
   blueRow(y,18);put(y,X0,X1,`Margin ${isFinite(mg)?nf(mg,1).replace(/\.0$/,'')+'%':'-'}   ·   Price = (material piece cost + machining total per pc) ÷ (1 − margin)`,{color:'FFCDDCF0',sz:9,wrap:false,ind:1});y++;
   const mh=y;blueRow(y,20);
   put(y,2,2,'Margin',{color:'FFCDDCF0',b:true,sz:9,ind:1});put(y,3,3,'Δ pts',{color:'FFCDDCF0',b:true,sz:9,h:'right'});
@@ -2688,9 +2863,10 @@ async function pafAddSheet(wb,k,mk,meta,sheetName){
     qs.forEach((q,j)=>{const c=LET(3+j);put(y,4+j,4+j,isFinite(g)&&g<100&&isFinite(mat)?{formula:`IF(AND(${c}$${TOT}<>"",$B${y}<>""),(${MAT}+${c}$${TOT})/(1-$B${y}),"")`}:'',{color:XC.ink,b:base,h:'right',nf:money})});
     ws.getRow(y).height=18;y++});
   blueRow(y,10);y++;
+  }
   /* quote simulation */
-  blueRow(y,20);put(y,X0,X1,'QUOTE SIMULATION  ·  type in the white cells',{color:'FFCDDCF0',b:true,sz:9,wrap:false,ind:1});y++;
-  const inp=(r,c1,c2,v,nf)=>put(r,c1,c2,v,{fill:XC.ink,color:XC.brand,b:true,h:'right',nf,unlock:true,border:box('FF9DB8DA')});
+  blueRow(y,20);put(y,X0,X1,(OPXS?'QUOTED CONDITIONS  ·  fixed by the quoting cell':'QUOTE SIMULATION  ·  type in the white cells'),{color:'FFCDDCF0',b:true,sz:9,wrap:false,ind:1});y++;
+  const inp=(r,c1,c2,v,nf)=>put(r,c1,c2,v,{fill:XC.ink,color:XC.brand,b:true,h:'right',nf,unlock:!OPXS,border:box('FF9DB8DA')});
   const lab=(r,t)=>put(r,X0,3,t,{color:XC.ink,sz:9,ind:1,wrap:false});
   const note=(r,c1,v)=>put(r,c1,X1,v,{color:'FFCDDCF0',sz:9,wrap:false,ind:1});
   const rq=y;blueRow(y,22);lab(y,'QUOTED QUANTITY');inp(y,4,5,M.qq!==''&&parseFloat(M.qq)>0?parseFloat(M.qq):null,'0');note(y,6,'pcs');const QQ=`$D$${rq}`;y++;
@@ -2742,7 +2918,9 @@ const jclone=o=>JSON.parse(JSON.stringify(o));
   const hd=document.createElement('div');hd.id='parttitle';hd.className='parttitle';c.appendChild(hd);
   [t,$('tab-blocks'),$('tab-rods'),$('tab-rounds')].forEach(e=>c.appendChild(e));
   const nav=document.createElement('nav');nav.id='pafnav';nav.className='tabs pafnav';nav.setAttribute('role','tablist');nav.setAttribute('aria-label','PAF parts');c.parentNode.insertBefore(nav,c);
-  const cv=document.createElement('div');cv.id='pafcover';c.parentNode.insertBefore(cv,c)})();
+  const cv=document.createElement('div');cv.id='pafcover';c.parentNode.insertBefore(cv,c);
+  const pl=document.createElement('div');pl.id='paflist';pl.hidden=true;c.parentNode.insertBefore(pl,cv);
+  const mb=document.createElement('div');mb.id='modebar';nav.parentNode.insertBefore(mb,nav)})();
 
 /* snapshot of everything one part's calculator holds, so each Part # keeps its own calculation */
 function snapTake(){
@@ -2779,18 +2957,19 @@ function pafNav(){
   nav.innerHTML=`<button role="tab" type="button" data-pg="-1" aria-selected="${PAF.cur===-1}">PAF</button>`+PAF.parts.map((p,i)=>`<button role="tab" type="button" data-pg="${i}" aria-selected="${PAF.cur===i}" title="${(p.desc||'').replace(/"/g,'&quot;')}">${pafLabel(i).replace(/</g,'&lt;')}</button>`).join('');
 }
 function pafTitle(){
-  const hd=$('parttitle'),i=PAF.cur; if(i<0){hd.hidden=true;return} hd.hidden=false;const p=PAF.parts[i];
+  const hd=$('parttitle'),i=PAF.cur; scBar(); if(i<0){hd.hidden=true;return} hd.hidden=false;const p=PAF.parts[i];
   hd.innerHTML=`<div class="pt-l"><span class="pt-k">Part #</span><b class="num"></b><span class="pt-d"></span></div><div class="pt-r"></div>`;
   hd.querySelector('b').textContent=p.no||('Part '+(i+1)); hd.querySelector('.pt-d').textContent=[p.desc,p.grade?'Requested '+p.grade:'',p.quoted?'Quoted '+p.quoted:''].filter(Boolean).join(' · ');
   hd.querySelector('.pt-r').textContent=[PAF.no?'PAF # '+PAF.no:'',PAF.cust].filter(Boolean).join(' · ');
 }
 function pafView(){
-  const cover=PAF.cur===-1; $('pafcover').hidden=!cover; $('calc').hidden=cover; $('upd-open').hidden=!cover; pafNav(); pafTitle();
-  if(cover)pafCover(); else {setTimeout(()=>{paint();rPaint();qPaint()},0)}
+  const lst=PAF.cur===-2, cover=PAF.cur===-1; $('pafcover').hidden=!cover; $('paflist').hidden=!lst; $('calc').hidden=cover||lst; $('upd-open').hidden=!(cover||lst); applyRO(); pafNav(); pafTitle(); modeBar(); $('modebar').hidden=lst; $('pafnav').hidden=lst;
+  if(lst)listRender(); else if(cover)pafCover(); else {setTimeout(()=>{paint();rPaint();qPaint()},0)}
 }
 function pafGo(j){
   if(PAF.busy)return;
-  if(j>=0&&j!==PAF.live){PAF.parts[PAF.live].snap=snapTake();PAF.live=j;snapPut(PAF.parts[j].snap||S0)}
+  if(j>=0&&j!==PAF.live){pafCapture();PAF.live=j;snapPut(PAF.parts[j].snap||S0)}
+  else if(j<0&&PAF.cur>=0)pafCapture();
   PAF.cur=j; pafView();
 }
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#pafnav button');if(b)pafGo(+b.dataset.pg)});
@@ -2813,14 +2992,15 @@ function pafCover(){
         <div class="field"><label for="paf-no">PAF #</label><input id="paf-no" data-pc="no" type="text" maxlength="40" autocomplete="off" placeholder="e.g. 2026/0457"></div>
         <div class="field"><label for="paf-cust">Customer</label><input id="paf-cust" data-pc="cust" type="text" maxlength="80" autocomplete="off"></div>
         <div class="field"><label for="paf-desc">Description</label><input id="paf-desc" data-pc="desc" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Seal rings for pump X"></div>
+        <div class="field"><label for="paf-rfq">RFQ received</label><input id="paf-rfq" data-pc="rfq" type="date"></div>
         <div class="field"><label for="paf-date">Created</label><input id="paf-date" data-pc="date" type="date"></div>
       </div></div></section>
       <section class="card"><header><h2>Parts</h2><span class="tag">Each row opens its own raw material calculator</span></header>
       <div class="body"><table class="paftab"><thead><tr><th>Part description</th><th>Requested Grade</th><th>Quoted Grade</th><th>Part #</th><th></th></tr></thead><tbody></tbody></table>
       <p class="note" style="margin:8px 0 0">Fill in the description and the Part # to add another part with the “+”. The Part # is the title of the part’s calculator tab.</p></div></section>
       <section class="card"><header><h2>PAF form</h2><span class="tag">Excel · one tab per Part #</span></header>
-      <div class="body pafact"><button type="button" class="pbtn go" id="paf-gen">Generate PAF form</button><button type="button" class="pbtn" id="paf-save">Save PAF</button><button type="button" class="pbtn" id="paf-open">Open PAF…</button><button type="button" class="pbtn" id="paf-new">New PAF</button><button type="button" class="pbtn sm" id="paf-exp" title="Download a backup file of this PAF">Export file</button><button type="button" class="pbtn sm" id="paf-imp" title="Load a PAF from a backup file">Import file</button><input type="file" id="paf-file" accept=".json,application/json" hidden>
-      <span class="msg" id="paf-msg" role="status"></span></div><div class="body" id="paf-list" hidden></div></section>`;
+      <div class="body pafact"><button type="button" class="pbtn go" id="paf-gen">Generate PAF form</button><button type="button" class="pbtn" id="paf-save" title="Download a backup file of this PAF">Save PAF file</button><button type="button" class="pbtn" id="paf-open" title="Load a PAF from a backup file">Open PAF file</button><input type="file" id="paf-file" accept=".json,application/json" hidden>
+      <span class="msg" id="paf-msg" role="status"></span></div></section>`;
     cv.addEventListener('input',e=>{const t=e.target,pc=t.dataset&&t.dataset.pc,pf=t.dataset&&t.dataset.pf;
       if(pc){PAF[pc]=t.value;return}
       if(pf){const tr=t.closest('tr'),i=+tr.dataset.i;PAF.parts[i][pf]=t.value;const b=tr.querySelector('.add');if(b)b.hidden=!(i===PAF.parts.length-1&&pafOk(PAF.parts[i]));pafNav()}});
@@ -2832,12 +3012,12 @@ function pafCover(){
         else{PAF.parts.splice(i,1);if(i<PAF.live)PAF.live--}
       }else return;
       pafParts();pafNav()});
-    $('paf-gen').onclick=pafGenerate; $('paf-save').onclick=pafSaveDb; $('paf-open').onclick=pafList; $('paf-new').onclick=pafNew; $('paf-exp').onclick=pafExport; $('paf-imp').onclick=()=>$('paf-file').click(); $('paf-file').onchange=e=>{const f=e.target.files[0];if(f)pafOpen(f);e.target.value=''};
+    $('paf-gen').onclick=pafGenerate; $('paf-save').onclick=pafSave; $('paf-open').onclick=()=>$('paf-file').click(); $('paf-file').onchange=e=>{const f=e.target.files[0];if(f)pafOpen(f);e.target.value=''};
   }
-  cv.querySelector('[data-pc=no]').value=PAF.no;cv.querySelector('[data-pc=cust]').value=PAF.cust;cv.querySelector('[data-pc=desc]').value=PAF.desc||'';cv.querySelector('[data-pc=date]').value=PAF.date;
-  pafParts();
+  cv.querySelector('[data-pc=no]').value=PAF.no;cv.querySelector('[data-pc=cust]').value=PAF.cust;cv.querySelector('[data-pc=desc]').value=PAF.desc||'';cv.querySelector('[data-pc=date]').value=PAF.date;cv.querySelector('[data-pc=rfq]').value=PAF.rfq||'';
+  pafParts();flowRender();coverRO();
 }
-const pafMsg=(t,ok)=>{const m=$('paf-msg');if(m){m.textContent=t||'';m.classList.toggle('ok',!!ok)}};
+const pafMsg=(t,ok)=>{const m=$('paf-msg');if(m){m.textContent=t||'';m.classList.toggle('ok',!!ok)}const f=$('flow-msg');if(f){f.textContent=t||'';f.classList.toggle('ok',!!ok)}};
 async function pafDownload(blob,name){
   if(RPT.dl){await RPT.dl.save({filename:name,data:blob})}
   else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
@@ -2855,18 +3035,18 @@ const pafFileX=()=>{const c=t=>String(t||'').replace(/[\\/:*?"<>|]+/g,'_').repla
 const pafFile=(ext)=>`PAF # ${(PAF.no||'').replace(/[\\/:*?"<>|]+/g,'_').trim()}.${ext}`;
 
 /* ---- Excel: cover + one sheet per Part # (two for a combined order) ---- */
-async function pafGenerate(){
+async function pafGenerate(op){ const OPX=op===true, opRes=[]; if(OPX&&!(PAF.prod&&PAF.mode==='prod'))return;
   if(PAF.busy)return; if(!PAF.no.trim()){pafMsg('Enter the PAF # to continue.');$('paf-no').focus();return}
-  PAF.busy=true; ['paf-gen','paf-save','paf-open','paf-new','paf-exp','paf-imp'].forEach(i=>$(i).disabled=true); pafMsg('Generating the Excel file...',true);
-  const keep=PAF.live, saved=snapTake(); PAF.parts[PAF.live].snap=saved;
+  PAF.busy=true; ['paf-gen','paf-save','paf-open'].forEach(i=>$(i).disabled=true); pafMsg('Generating the Excel file...',true);
+  pafCapture(); const keep=PAF.live, saved=snapTake(); PAF.parts[PAF.live].snap=saved;
   try{
-    XL3=true; await rptLib();
+    XL3=true; await rptLib(); window.__OPX=OPX;
     const wb=new ExcelJS.Workbook(); wb.creator='Ei6 PAF tool'; wb.created=new Date(); wb.calcProperties={fullCalcOnLoad:true};
     const cover=wb.addWorksheet('Cover',{views:[{showGridLines:false}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
     const used=new Set(['Cover']), rows=[];
     const uniq=n=>{let b=n.replace(/[\\\/\?\*\[\]:]/g,'-').trim().slice(0,28)||'Part',c=b,k=2;while(used.has(c.toLowerCase()))c=b.slice(0,26)+' ('+k++ +')';used.add(c.toLowerCase());return c};
     for(let i=0;i<PAF.parts.length;i++){
-      const p=PAF.parts[i]; PAF.live=i; snapPut(p.snap||S0);
+      const p=PAF.parts[i]; PAF.live=i; snapPut(OPX?opSnap(i):(p.snap||S0)); if(OPX)opRes[i]=resultsNow();
       const tab=TABS.find(k=>!$('tab-'+k).hidden)||'blocks';
       const keys=tab==='blocks'?(document.querySelector('.mfin[data-k="b0"]')?['b0','b1']:['b']):tab==='rods'?['r']:['q'];
       for(let j=0;j<keys.length;j++){
@@ -2882,10 +3062,10 @@ async function pafGenerate(){
     for(let r=1;r<=4;r++)for(let c=1;c<=11;c++)cover.getCell(r,c).fill=f(B);
     const cp=(r,c1,c2,v,o={})=>{if(c2>c1)cover.mergeCells(r,c1,r,c2);const ce=cover.getCell(r,c1);ce.value=v;ce.font={name:'Arial',size:o.sz||10,bold:!!o.b,color:{argb:o.color||T}};ce.alignment={vertical:'middle',horizontal:o.h||'left',wrapText:o.wrap!==false};
       for(let c=c1;c<=c2;c++){const x=cover.getCell(r,c);if(o.fill)x.fill=f(o.fill);if(o.line)x.border={bottom:{style:'thin',color:{argb:L}}}}if(o.nf)ce.numFmt=o.nf;return ce};
-    cp(1,2,5,'Ei6  ·  PAF form',{color:W,b:true,sz:20,wrap:false});cover.getRow(1).height=34;
-    cp(2,2,5,`PAF # ${PAF.no}`,{color:W,b:true,sz:16,wrap:false});cover.getRow(2).height=26;
+    cp(1,2,5,OPX?'Ei6  ·  Production order':'Ei6  ·  PAF form',{color:W,b:true,sz:20,wrap:false});cover.getRow(1).height=34;
+    cp(2,2,5,`PAF # ${PAF.no}${OPX?'  ·  OP rev '+((PAF.prod.opRev||0)+1):''}`,{color:W,b:true,sz:16,wrap:false});cover.getRow(2).height=26;
     cp(3,2,10,`Customer: ${PAF.cust||'-'}${PAF.desc?'  ·  '+PAF.desc:''}`,{color:'FFCDDCF0',sz:11,wrap:false});
-    cp(4,2,10,`Created ${PAF.date}  ·  Units: ${UNIT.us?'US (in, lb)':'Metric (mm, kg)'}  ·  Price basis: EXW Parma-OH  ·  ${rows.length} sheet${rows.length>1?'s':''}`,{color:'FFCDDCF0',sz:9,wrap:false});
+    cp(4,2,10,`${PAF.rfq?'RFQ received '+PAF.rfq+'  ·  ':''}Created ${PAF.date}  ·  Units: ${UNIT.us?'US (in, lb)':'Metric (mm, kg)'}  ·  Price basis: EXW Parma-OH  ·  ${rows.length} sheet${rows.length>1?'s':''}`,{color:'FFCDDCF0',sz:9,wrap:false});
     let y=6; const hd=['Part #','Description','Demanded part dimension','Requested grade','Quoted grade','Calculator','Quoted qty','Quoted price / pc','Final margin'];
     hd.forEach((h,i)=>cp(y,2+i,2+i,h,{fill:B,color:W,b:true,h:i>5?'right':'left',wrap:false}));cover.getRow(y).height=22;y++;
     rows.forEach((r,i)=>{const q=`'${r.sheet}'!`;
@@ -2896,16 +3076,17 @@ async function pafGenerate(){
       cp(y,10,10,{formula:`IF(ISNUMBER(${q}${r.margin}),${q}${r.margin},"")`},{line:true,h:'right',nf:'0.0%'});
       cover.getRow(y).height=20; cover.getCell(y,2).value={text:r.no,hyperlink:`#'${r.sheet}'!A1`};cover.getCell(y,2).font={name:'Arial',size:10,bold:true,color:{argb:B},underline:true};y++});
     y++;cp(y,2,10,'The prices on this page follow the white cells of each Part # sheet (quote simulation); change them there. Each sheet also holds the cutting plan, Offall memorial, material and machining cost.',{color:M,sz:9});cover.getRow(y).height=28;
+    if(OPX)opCompareSheet(wb,rows,opRes);
     const buf=await wb.xlsx.writeBuffer();
     XL3=false; snapPut(saved); PAF.live=keep;
     PAF.cur=-1; pafView();
     pafMsg('Waiting for you to confirm the download...',true);
-    await pafDownload(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),pafFileX());
-    pafMsg('PAF form generated.',true);
+    await pafDownload(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),OPX?pafFileOP():pafFileX());
+    if(OPX)await opAfterExport(); else genDone(); pafMsg(OPX?'Production order generated and saved in this PAF.':'PAF form generated.',true);
   }catch(err){
     XL3=false; try{snapPut(saved);PAF.live=keep;PAF.cur=-1;pafView()}catch(_){}
     const c=err&&err.code; pafMsg(c==='declined'?'Download cancelled. Click Generate PAF form to try again.':c==='rate_limited'?'Another download prompt is open. Wait a moment and try again.':(err&&err.message)||'Could not generate the Excel file.');
-  }finally{PAF.busy=false;['paf-gen','paf-save','paf-open','paf-new','paf-exp','paf-imp'].forEach(i=>{const e=$(i);if(e)e.disabled=false})}
+  }finally{window.__OPX=false;PAF.busy=false;['paf-gen','paf-save','paf-open'].forEach(i=>{const e=$(i);if(e)e.disabled=false})}
 }
 
 /* ---- server: PAFs live in Supabase (through the PHP API); a file export remains as a backup ---- */
@@ -2916,58 +3097,8 @@ async function api(method,url,body){
   if(!r.ok){const e=new Error(d.error||'Request failed');e.status=r.status;throw e}
   return d;
 }
-const pafBody=()=>({number:PAF.no,customer:PAF.cust,description:PAF.desc,created_on:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,grade:p.grade||'',quoted:p.quoted||'',no:p.no,snap:p.snap||S0}))});
-async function pafSaveDb(){
-  if(PAF.busy)return;
-  if(!PAF.no.trim()){pafMsg('Enter the PAF # to continue.');$('paf-no').focus();return}
-  PAF.parts[PAF.live].snap=snapTake(); PAF.busy=true; pafMsg('Saving...',true);
-  try{
-    const d=PAF.id?await api('PUT','/api/pafs/'+PAF.id,Object.assign(pafBody(),{version:PAF.ver})):await api('POST','/api/pafs',pafBody());
-    PAF.id=d.id;PAF.ver=d.version;pafMsg('Saved · version '+d.version+' · '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),true);
-  }catch(e){pafMsg(e.message)}finally{PAF.busy=false}
-}
-function pafNew(){
-  if(PAF.busy)return; if(PAF.id||PAF.no||PAF.parts.some(p=>p.desc||p.no)){if($('paf-new').dataset.sure!=='1'){$('paf-new').dataset.sure='1';$('paf-new').textContent='Discard and start new?';setTimeout(()=>{const b=$('paf-new');if(b){b.dataset.sure='';b.textContent='New PAF'}},3500);return}}
-  $('paf-new').dataset.sure='';$('paf-new').textContent='New PAF';
-  Object.assign(PAF,{id:null,ver:0,no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),parts:[{desc:'',grade:'',quoted:'',no:'',snap:null}],cur:-1,live:0});
-  snapPut(S0);pafView();pafMsg('New PAF.',true);
-}
-async function pafLoad(id){
-  if(PAF.busy)return; PAF.busy=true; pafMsg('Opening...',true);
-  try{
-    const d=await api('GET','/api/pafs/'+id), parts=(d.payload&&d.payload.parts)||[];
-    if(!Array.isArray(parts)||!parts.length)throw new Error('This PAF has no parts.');
-    Object.assign(PAF,{id:d.id,ver:d.version,no:String(d.number),cust:String(d.customer||''),desc:String((d.payload&&d.payload.description)||'').slice(0,120),date:String(d.created_on),
-      parts:parts.slice(0,50).map(p=>({desc:String(p.desc||''),grade:String(p.grade||'').slice(0,60),quoted:String(p.quoted||'').slice(0,60),no:String(p.no||''),snap:p.snap||null})),live:0,cur:-1});
-    snapPut(PAF.parts[0].snap||S0);pafView();pafMsg('Opened PAF # '+PAF.no+' · version '+d.version+'.',true);
-  }catch(e){pafMsg(e.message)}finally{PAF.busy=false}
-}
-async function pafList(){
-  const box=$('paf-list'); if(!box.hidden){box.hidden=true;return}
-  try{
-    const d=await api('GET','/api/pafs'); box.hidden=false; box.textContent='';
-    if(!d.items.length){const p=document.createElement('p');p.className='note';p.textContent='No saved PAFs yet.';box.appendChild(p);return}
-    const t=document.createElement('table');t.className='paflist';
-    t.innerHTML='<thead><tr><th>PAF #</th><th>Customer</th><th>Last change</th><th class="r">Ver.</th><th></th></tr></thead><tbody></tbody>';
-    d.items.forEach(it=>{const tr=document.createElement('tr'),c=(txt,cls)=>{const x=document.createElement('td');x.textContent=txt;if(cls)x.className=cls;tr.appendChild(x);return x};
-      c(it.number);c(it.customer||'-');c((it.updated_by||'-')+' · '+new Date(it.updated_at).toLocaleString());c(it.version,'r');
-      const a=document.createElement('td');a.className='r';
-      const o=document.createElement('button');o.type='button';o.className='pbtn sm';o.textContent='Open';o.onclick=()=>pafLoad(it.id);
-      const x=document.createElement('button');x.type='button';x.className='pbtn sm';x.textContent='Delete';x.style.marginLeft='6px';
-      x.onclick=async()=>{if(x.dataset.sure!=='1'){x.dataset.sure='1';x.textContent='Sure?';setTimeout(()=>{x.dataset.sure='';x.textContent='Delete'},3000);return}
-        try{await api('DELETE','/api/pafs/'+it.id);if(PAF.id===it.id){PAF.id=null;PAF.ver=0}tr.remove();pafMsg('PAF deleted.',true)}catch(e){pafMsg(e.message)}};
-      a.append(o,x);tr.appendChild(a);t.querySelector('tbody').appendChild(tr)});
-    box.appendChild(t);
-  }catch(e){pafMsg(e.message)}
-}
 /* ---- backup file (export/import of the whole PAF, all parts and their calculations) ---- */
-async function pafExport(){
-  if(PAF.busy)return; PAF.parts[PAF.live].snap=snapTake();
-  const data={app:'ei6-paf',v:1,no:PAF.no,cust:PAF.cust,desc:PAF.desc,date:PAF.date,parts:PAF.parts.map(p=>({desc:p.desc,grade:p.grade||'',quoted:p.quoted||'',no:p.no,snap:p.snap||S0}))};
-  try{pafMsg('Saving...',true);await pafDownload(new Blob([JSON.stringify(data)],{type:'application/json'}),pafFile('json').replace(/\.json$/,'.ei6paf.json'));pafMsg('PAF file saved.',true)}
-  catch(err){pafMsg(err&&err.code==='declined'?'Download cancelled.':(err&&err.message)||'Could not save the file.')}
-}
-async function pafOpen(file){
+async function pafOpenOld(file){
   try{
     const d=JSON.parse(await file.text());
     if(!d||d.app!=='ei6-paf'||!Array.isArray(d.parts)||!d.parts.length)throw new Error('This is not a PAF file saved by this tool.');
@@ -2980,8 +3111,485 @@ async function pafOpen(file){
 
 $('who').textContent=__U.email+(__U.role==='admin'?' · admin':'');
 $('signout').onclick=async()=>{try{await api('POST','/api/logout',{})}catch(_){ }location.replace('/')};
+/* =================== web: shared storage on top of the PHP API (Supabase) ===================
+   The v2 page keeps PAFs as documents pafs/<id> (summary), pafs/<id>/data/quote and pafs/<id>/data/prod. Here they live in ONE row
+   of public.pafs: payload {v:2, meta, quote, prod}; "meta" is also a column, used by the All PAFs list. PAFs saved by the previous
+   versions (payload.parts, no meta) are read as unlocked Drafts, so every PAF already in the database keeps opening. */
+const WEBDB=(function(){
+  const O=x=>x&&typeof x==='object'&&!Array.isArray(x)?x:{};          // empty objects come back from PHP as []
+  const idx=new Map(), rowC=new Map(), pend=new Map(), subs=new Set(); let items=[], inflight=new Map(), timer=0;
+  const slugOf=it=>{let k=pafIdOf(it.number);if(idx.has(k)&&idx.get(k).uuid!==it.id)k=k+'~'+String(it.id).slice(0,8);return k};
+  function metaOf(it,payload){
+    let m;
+    if(it.meta&&O(it.meta)===it.meta)m=Object.assign({},it.meta);
+    else if(payload&&O(payload.meta)===payload.meta)m=Object.assign({},payload.meta);
+    else m={no:it.number,cust:it.customer||'',desc:String((payload&&payload.description)||''),date:it.created_on,status:'draft',lock:null,gen:null,ev:{},po:'',opRev:0,
+      parts:((payload&&payload.parts)||[]).map(p=>({no:p.no||'',desc:p.desc||''})),n:((payload&&payload.parts)||[]).length};
+    m.ev=O(m.ev); m.rev=it.version; m.at=it.updated_at||it.created_at; m.by=it.updated_by||m.by||''; m.legacy=!(it.meta||(payload&&payload.meta));
+    return m}
+  async function refresh(){
+    const d=await api('GET','/api/pafs'); idx.clear();
+    items=d.items.map(it=>{const id=slugOf(it);idx.set(id,{uuid:it.id,number:it.number});return {id,m:metaOf(it)}});
+    subs.forEach(f=>f.ok(snap())); return items}
+  const snap=()=>({docs:items.map(x=>({id:x.id,data:()=>x.m}))});
+  async function row(id,fresh){
+    const k=id; if(!fresh&&inflight.has(k))return inflight.get(k);
+    const pr=(async()=>{
+      let e=idx.get(id); if(!e){await refresh();e=idx.get(id)} if(!e){rowC.delete(id);return null}
+      const d=await api('GET','/api/pafs/'+e.uuid); rowC.set(id,d); return d})();
+    inflight.set(k,pr); const done=()=>setTimeout(()=>inflight.delete(k),1500); pr.then(done,()=>inflight.delete(k)); return pr}
+  const exists=v=>({exists:v!=null,data:()=>v});
+  function ref(path){
+    const m=path.match(/^pafs\/([^/]+)(?:\/data\/(quote|prod))?$/); if(!m)throw new Error('unsupported path '+path);
+    const id=m[1], sub=m[2];
+    return {
+      async get(){
+        const r=await row(id); if(!r)return exists(null);
+        const pl=O(r.payload), v2=pl.v===2;
+        if(!sub)return exists(metaOf(r,pl));
+        if(sub==='quote')return exists(v2?(pl.quote||null):{parts:(pl.parts||[]),frozen:null});
+        return exists(v2?(pl.prod||null):null)},
+      async set(data){
+        if(sub){const q=pend.get(id)||{};q[sub]=data;pend.set(id,q);return}
+        const q=pend.get(id)||{}, old=rowC.get(id), pl=O(old&&old.payload), v2=pl.v===2;
+        const quote=q.quote!==undefined?q.quote:(v2?pl.quote:(old?{parts:pl.parts||[],frozen:null}:null));
+        const prod=q.prod!==undefined?q.prod:(v2?pl.prod:null);
+        const body={number:data.no,customer:data.cust,created_on:data.date,v2:{meta:data,quote:quote||null,prod:prod||null}};
+        let d; const e=idx.get(id);
+        try{d=e&&old?await api('PUT','/api/pafs/'+e.uuid,Object.assign(body,{version:old.version})):await api('POST','/api/pafs',body)}
+        finally{pend.delete(id)}
+        rowC.delete(id); inflight.delete(id); refresh().catch(()=>{}); return d},
+      async delete(){
+        if(sub)return; const e=idx.get(id); if(!e)return; await api('DELETE','/api/pafs/'+e.uuid); rowC.delete(id); idx.delete(id); await refresh()}}}
+  return {
+    doc:ref,
+    collection(){return {orderBy(){return this},limit(){return this},
+      onSnapshot(ok,bad){const s={ok,bad}; subs.add(s);
+        refresh().catch(e=>bad&&bad(e));
+        if(!timer)timer=setInterval(()=>{if(document.visibilityState==='visible'&&subs.size&&!document.querySelector('#paflist[hidden]'))refresh().catch(()=>{})},30000);
+        return ()=>subs.delete(s)}}}}
+})();
+const WEBUSER={id:async()=>__U.email,can:async()=>true,profiles:async ids=>Object.fromEntries(ids.map(i=>[i,{name:i}]))};
+/* =================== v2: shared PAFs (db), locked quote, production mode =================== */
+const PLAT={db:null,user:null,uid:null,cw:null,list:[],err:'',msg:'',bad:false};
+const ST={draft:'Draft',quoted:'Quote locked',po:'PO received',review:'Production review',op:'OP issued'};
+const TAGS=['Lowest cost','Burn aged stock','Reduce a material category','Availability / lead time','Customer requirement','Other'];
+const hx=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fm=n=>Number.isFinite(n)?'$ '+nf(n,2):'—';
+const fp=n=>Number.isFinite(n)?nf(n*100,1)+'%':'—';
+const fd=(n,d,u)=>Number.isFinite(n)?(n>0.00001?'+':n<-0.00001?'−':'')+nf(Math.abs(n),d)+(u||''):'—';
+const dl=(a,b,d,u)=>Number.isFinite(a)&&Number.isFinite(b)?fd(a-b,d,u):'—';
+const when=iso=>{try{return iso?new Date(iso).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):''}catch(e){return ''}};
+const J=o=>JSON.parse(JSON.stringify(o));
+const pstrip=p=>({desc:p.desc||'',grade:p.grade||'',quoted:p.quoted||'',no:p.no||'',snap:p.snap||null,res:p.res||null});
+const pafIdOf=no=>String(no).trim().replace(/[^A-Za-z0-9_\-.~:@+]+/g,'-').replace(/^\.+$/,'x').slice(0,120);
+const errTxt=e=>{const c=e&&e.code,m={quota_exceeded:'The shared storage is full.',invalid_argument:'The shared storage refused the data (too large, or you have no write access).',resource_exhausted:'Too many requests. Wait a moment and try again.',revoked:'Your access to this tool was withdrawn.',not_granted:'Shared storage is not enabled for this tool.'};return (c&&m[c])||(e&&e.message)||String(e)};
+Object.defineProperty(window,'__PRODMODE',{get:()=>PAF.mode==='prod',configurable:true});
+Object.assign(PAF,{rfq:'',gen:null,ev:{},id:'',status:'draft',rev:0,lock:null,frozen:null,mode:'quote',qparts:null,prod:null,po:'',dirty:false,qWrite:true,saving:false,at:''});
+
+/* ---- results of the part loaded in the calculator (what the quote / the scenario costs) ---- */
+/* Snapshots are stored in the shared DB and reopened later, so every reference to a row of a data list (price list item, Digger lot) is saved by NAME / LOT NUMBER too, and looked up again on restore: a row index is only valid for the exact list it was taken from. */
+(function(){
+  const _take=window.snapTake, _put=window.snapPut;
+  const lists={BL:()=>PRICES,RD:()=>RODPRICES,RN:()=>ROUNDPRICES}, st={BL:()=>state,RD:()=>rstate,RN:()=>qstate};
+  window.snapTake=function(){
+    const s=_take.apply(this,arguments);
+    try{const ID={mat:{},lot:null};
+      for(const c of ['BL','RD','RN']){const L=lists[c](),i=Math.min(st[c]().mat,L.length-1);ID.mat[c]=L[i]?L[i].name:null}
+      const a=DG.applied; if(a&&a.i!=null&&DIGGER_DATA[a.i])ID.lot=DIGGER_DATA[a.i][3];
+      s.ID=ID}catch(e){}
+    return s};
+  window.snapPut=function(S0_){
+    let S=S0_; 
+    try{ if(S&&S.ID){ S=JSON.parse(JSON.stringify(S));
+      for(const c of ['BL','RD','RN']){const nm=S.ID.mat&&S.ID.mat[c]; if(!nm)continue; const k=lists[c]().findIndex(m=>m.name===nm); if(k>=0){ if(c==='BL')S.state.mat=k; else if(c==='RD')S.rstate.mat=k; else S.qstate.mat=k } }
+      const a=S.DG&&S.DG.applied; if(a&&a.i!=null&&S.ID.lot!=null){ const k=DIGGER_DATA.findIndex(r=>r[3]===S.ID.lot); if(k>=0)a.i=k; else {S.DG.applied=null; S.DG.lot=Object.assign({},S.DG.lot,{[a.cat]:false})} }
+    }}catch(e){ S=S0_ }
+    return _put.call(this,S)};
+})();
+const BUILD='22Nov 18:25 UTC';
+function resultsNow(){
+  const tab=TABS.find(k=>!$('tab-'+k).hidden)||'blocks', key=omKeys(tab)[0], M=mchSt(key);
+  const PM=((window.__MCHP||{})[key]||[])[0], mat=PM&&Number.isFinite(PM.c)?PM.c:NaN;
+  const qq=parseFloat(M.qq)>0?parseFloat(M.qq):0, qp=parseFloat(M.qp);
+  const mach=qq>0?mchTotAt(key,qq):NaN;
+  const pc=packChoice(key), packTot=pc?pc.o.c*Math.max(1,parseFloat(M.pn)||1):0, pack=qq>0?packTot/qq:0;
+  const price=qq>0&&Number.isFinite(qp)?qp+pack:NaN;
+  const margin=price>0&&Number.isFinite(mat)&&Number.isFinite(mach)?1-(mat+mach+pack)/price:NaN;
+  const cat={blocks:'BL',rods:'RD',rounds:'RN'}[tab]; let src='',age='';
+  try{src=rSource(tab)}catch(e){}
+  try{if(mfOn(cat))age=[...new Set(DG.mf[cat].map(x=>DIGGER_DATA[x.i][6]))].join('/');else{const a=DG.applied;if(a&&a.cat===cat&&!a.mat&&DIGGER_DATA[a.i])age=String(DIGGER_DATA[a.i][6]||'')}}catch(e){}
+  return {tab,mat,mach,pack,qq,qp,price,margin,lt:M.lt||'',src,age,pk:pc?packXl(pc):'None',dv:DIGGER_DATA.length+'/'+PRICES.length};
+}
+/* the part on screen is read-only when it is the locked quote or the quote scenario in Production mode */
+const roNow=()=>PAF.mode==='quote'?!!PAF.lock:!!(PAF.prod&&PAF.prod.parts[PAF.live]&&PAF.prod.parts[PAF.live].act===0);
+function pafCapture(){
+  const i=PAF.live,p=PAF.parts[i]; if(!p||roNow())return;
+  p.snap=snapTake(); try{p.res=resultsNow()}catch(e){}
+  if(PAF.mode==='prod'){const q=PAF.prod.parts[i]; if(q.act>0){const s=q.sc[q.act];s.snap=p.snap;s.res=p.res||null}}
+}
+function applyRO(){const ro=roNow();document.body.classList.toggle('ro',ro);document.querySelectorAll('#calc .side,#calc .cost').forEach(e=>{if(ro)e.setAttribute('inert','');else e.removeAttribute('inert')})}
+let roT=0;new MutationObserver(()=>{if(!document.body.classList.contains('ro')||roT)return;roT=requestAnimationFrame(()=>{roT=0;applyRO()})}).observe($('calc'),{childList:true,subtree:true});
+function markDirty(){PAF.dirty=true;const e=$('mb-dirty');if(e)e.textContent='Unsaved changes'}
+function mbIds(){const a=$('mb-no'),b=$('mb-cust'),x=$('paf-no'),y=$('paf-cust');if(a&&x)a.textContent=x.value.trim()||'—';if(b&&y)b.textContent=y.value.trim()||'—'}
+document.addEventListener('input',e=>{if(e.target&&(e.target.id==='paf-no'||e.target.id==='paf-cust'))mbIds()},true);
+function genStale(){if(PAF.gen&&!PAF.gen.stale&&!PAF.lock&&PAF.mode==='quote'){PAF.gen.stale=true;flowRender()}}
+document.addEventListener('input',e=>{if(e.target.closest&&!e.target.closest('#paflist,#ls-q')&&!roNow()){markDirty();genStale()}},true);
+document.addEventListener('change',e=>{if(e.target.closest&&!e.target.closest('#paflist')&&!roNow()){markDirty();genStale()}},true);
+window.addEventListener('beforeunload',e=>{if(PAF.dirty){e.preventDefault();e.returnValue=''}});
+
+/* ---- small helpers ---- */
+function askUI(msg,ok){return new Promise(res=>{const o=document.createElement('div');o.className='rpt-ov';o.innerHTML='<div class="rpt-dlg" role="dialog" aria-modal="true"><header><h2>Please confirm</h2></header><div class="bd"><p class="hint" style="font-size:14px;color:var(--fg)"></p></div><footer><button type="button" data-a="0">Cancel</button><button type="button" class="go" data-a="1"></button></footer></div>';o.querySelector('p').textContent=msg;o.querySelector('.go').textContent=ok||'Continue';o.onclick=e=>{const b=e.target.closest('button');if(b){o.remove();res(b.dataset.a==='1')}};document.body.appendChild(o);o.querySelector('.go').focus()})}
+async function nameFill(root){
+  const els=[...root.querySelectorAll('[data-uid]')], ids=[...new Set(els.map(e=>e.dataset.uid).filter(Boolean))];
+  if(!els.length)return; if(!ids.length||!PLAT.user||!PLAT.user.profiles){els.forEach(e=>e.textContent='—');return}
+  try{const ps=await PLAT.user.profiles(ids);els.forEach(e=>{const p=ps[e.dataset.uid];e.textContent=(p&&p.name)||'Someone'})}catch(e){els.forEach(x=>x.textContent='Someone')}
+}
+function mbMsg(t,bad){PLAT.msg=t||'';PLAT.bad=!!bad;const e=$('mb-msg');if(e){e.textContent=PLAT.msg;e.classList.toggle('bad',PLAT.bad)}}
+function flowMsg(t,ok){const e=$('flow-msg');if(e){e.textContent=t||'';e.classList.toggle('ok',!!ok)}}
+
+/* ---- storage: documents pafs/<id> (summary), pafs/<id>/data/quote (frozen quote), pafs/<id>/data/prod (production) ---- */
+function metaNow(rev,at){
+  const lab=(PAF.lock||PAF.mode==='prod')&&PAF.qparts?PAF.qparts:PAF.parts, src=(PAF.lock&&PAF.frozen)?PAF.frozen:PAF.parts.map(p=>p.res);
+  return J({no:PAF.no,cust:PAF.cust,desc:PAF.desc,date:PAF.date,rfq:PAF.rfq||'',status:PAF.status,rev,at,by:PLAT.uid||'',lock:PAF.lock||null,gen:PAF.gen||null,ev:PAF.ev||{},po:PAF.po||'',opRev:(PAF.prod&&PAF.prod.opRev)||0,n:lab.length,
+    parts:lab.map((p,i)=>{const r=src[i]||{};return {no:p.no||'',desc:p.desc||'',price:r.price,qty:r.qq,margin:r.margin}})});
+}
+async function dbSave(){
+  const db=PLAT.db; if(!db)throw new Error('Shared storage is not available in this view. Use "Save PAF file" instead.');
+  if(PLAT.cw===false)throw new Error('You have view-only access: ask the owner for Contributor access.');
+  if(!PAF.no.trim())throw new Error('Enter the PAF # first.');
+  pafCapture();
+  const id=pafIdOf(PAF.no), mref=db.doc('pafs/'+id), cur=await mref.get(), cd=cur.exists?cur.data():null;
+  if(!PAF.id&&cd)throw new Error('PAF "'+PAF.no+'" already exists in the shared list. Open it from All PAFs.');
+  if(PAF.id&&PAF.id!==id)throw new Error('The PAF # cannot be changed after the first save.');
+  if(PAF.id&&cd&&cd.rev!==PAF.rev)throw new Error('Someone saved a newer version of this PAF ('+when(cd.at)+'). Reload it from All PAFs. To keep your changes, first use "Save PAF file".');
+  const rev=(PAF.rev||0)+1, at=new Date().toISOString();
+  let qdoc=null; if(!PAF.lock)qdoc={parts:PAF.parts.map(pstrip),frozen:null}; else if(PAF.qWrite)qdoc={parts:PAF.qparts.map(pstrip),frozen:PAF.frozen};
+  const big=(o,n)=>{if(JSON.stringify(J(o)).length>240000)throw new Error('The '+n+' of this PAF is too large for one shared document. Remove parts or scenarios.')};
+  if(qdoc){big(qdoc,'quote');await db.doc('pafs/'+id+'/data/quote').set(J(qdoc))}
+  if(PAF.prod){big(PAF.prod,'production data');await db.doc('pafs/'+id+'/data/prod').set(J(PAF.prod))}
+  await mref.set(metaNow(rev,at));
+  PAF.id=id;PAF.rev=rev;PAF.qWrite=false;PAF.dirty=false;PAF.at=at; return rev;
+}
+function pafReset(){
+  Object.assign(PAF,{rfq:'',gen:null,ev:{},id:'',no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),status:'draft',rev:0,lock:null,frozen:null,mode:'quote',qparts:null,prod:null,po:'',dirty:false,qWrite:true,at:''});
+}
+function pafNew(){
+  pafReset(); PAF.parts=[{desc:'',grade:'',quoted:'',no:'',snap:jclone(S0)}]; PAF.live=0; snapPut(S0); PAF.cur=-1; mbMsg(''); pafView();
+}
+function pafApply(d){
+  const m=d.meta||{}, qd=d.quote||{};
+  pafReset(); PAF.no=String(m.no||'');PAF.cust=String(m.cust||'');PAF.desc=String(m.desc||'').slice(0,120);PAF.date=String(m.date||PAF.date);PAF.rfq=String(m.rfq||'').slice(0,10);
+  PAF.status=m.status||'draft';PAF.rev=m.rev||0;PAF.lock=m.lock||null;PAF.gen=m.gen||null;PAF.ev=(m.ev&&typeof m.ev==='object'&&!Array.isArray(m.ev))?m.ev:{};PAF.po=m.po||'';PAF.at=m.at||'';
+  PAF.qparts=(qd.parts||[]).map(p=>({desc:String(p.desc||''),grade:String(p.grade||'').slice(0,60),quoted:String(p.quoted||'').slice(0,60),no:String(p.no||''),snap:p.snap||null,res:p.res||null}));
+  PAF.frozen=qd.frozen||null; PAF.prod=d.prod||null; PAF.qWrite=false;
+  if(!PAF.qparts.length)PAF.qparts=[{desc:'',grade:'',quoted:'',no:'',snap:null,res:null}];
+  PAF.parts=PAF.qparts.map(jclone); PAF.live=0; snapPut(PAF.parts[0].snap||S0); PAF.cur=-1; PAF.dirty=false;
+  if(PAF.lock&&PAF.prod&&(PAF.status==='review'||PAF.status==='op'))modeSwitch('prod',true);
+}
+async function dbLoad(id){
+  const db=PLAT.db, [m,q,p]=await Promise.all([db.doc('pafs/'+id).get(),db.doc('pafs/'+id+'/data/quote').get(),db.doc('pafs/'+id+'/data/prod').get()]);
+  if(!m.exists)throw new Error('This PAF was not found (deleted or not visible to you).');
+  pafApply({meta:m.data(),quote:q.exists?q.data():null,prod:p.exists?p.data():null}); PAF.id=id; mbMsg('');
+}
+async function saveShared(){
+  if(PAF.busy||PAF.saving)return; PAF.saving=true; mbMsg('Saving…');
+  try{const rev=await dbSave();mbMsg('Saved · v'+rev+' · '+when(PAF.at))}catch(e){mbMsg(errTxt(e),true)}
+  finally{PAF.saving=false;modeBar();if(PAF.cur===-1)flowRender()}
+}
+
+/* ---- mode bar (status, Quotation / Production switch, save) ---- */
+function procStatus(){
+  const q=PAF.gen&&!PAF.gen.stale?(PAF.lock?{txt:'Quotation locked',done:true}:{txt:'Pending lock quotation'}):(PAF.lock?{txt:'Quotation locked',done:true}:{txt:'Pending export PAF'});
+  let p={txt:'Pending allocation'};
+  if(PAF.ev&&PAF.ev.op)p={txt:'Production order completed',done:true};
+  else if(PAF.prod&&PAF.ev&&PAF.ev.review){
+    const alloc=PAF.prod.parts.some((pp,i)=>{const r0=pp.sc[0]&&pp.sc[0].res;return pp.sc.slice(1).some(s=>s.res&&r0&&(s.res.src!==r0.src||s.res.mat!==r0.mat))});
+    if(alloc)p={txt:'Pending production order'};
+  }
+  return {q,p}}
+function modeBar(){
+  const mb=$('modebar'); if(!mb)return; const {q:qs,p:ps}=procStatus(); document.body.classList.toggle('prod',PAF.mode==='prod');
+  mb.innerHTML=`<div class="mb-l">${PLAT.db?'<button type="button" class="pbtn ret" data-act="home">← Return to All PAFs</button>':''}<span class="mb-id"><span class="mb-k">PAF #:</span> <span class="num mb-no" id="mb-no">${hx(PAF.no||'—')}</span></span><span class="mb-id"><span class="mb-k">Customer:</span> <span class="mb-cust" id="mb-cust">${hx(PAF.cust||'—')}</span></span><span class="chip st-${hx(PAF.status)}">${hx(ST[PAF.status]||PAF.status)}</span><span class="mb-d" id="mb-dirty">${PAF.dirty?'Unsaved changes':''}</span><span class="mb-d ${PLAT.bad?'bad':''}" id="mb-msg">${hx(PLAT.msg)}</span></div>
+  <div class="mb-r"><span class="mb-d" title="Reload the page if this is not the latest build">build ${BUILD}</span><div class="proc" role="group" aria-label="Mode"><div class="pst"><button type="button" data-mode="quote" aria-pressed="${PAF.mode==='quote'}">Quotation</button><small class="${qs.done?'ok':''}">${qs.txt}</small></div><svg class="parr ${PAF.lock?'done':''}" width="64" height="16" viewBox="0 0 64 16" aria-hidden="true"><defs><linearGradient id="parg" gradientUnits="userSpaceOnUse" x1="9" y1="0" x2="48" y2="0"><stop offset="0" class="s0"/><stop offset="1" class="s1"/></linearGradient></defs><circle cx="4" cy="8" r="3.2" class="pdot"/><path d="M9 8h39" class="pline"/><path d="M46 2.2 58.5 8 46 13.8 49.6 8z" class="phead"/></svg><div class="pst"><button type="button" data-mode="prod" aria-pressed="${PAF.mode==='prod'}" ${PAF.lock?'':'disabled title="Lock the quote first"'}>Production</button><small class="${ps.done?'ok':''}">${ps.txt}</small></div></div>${PLAT.db?'<button type="button" class="pbtn go" data-act="save">Save</button>':'<span class="mb-d">Shared storage unavailable · file mode</span>'}</div>`;
+}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#modebar button');if(!b)return;if(b.dataset.mode)modeSwitch(b.dataset.mode);else if(b.dataset.act==='save')saveShared();else if(b.dataset.act==='home')goHome()});
+
+async function goHome(){
+  if(PAF.busy)return;
+  if(PAF.dirty&&!(await askUI('This PAF has unsaved changes. Return to All PAFs without saving them? (Cancel, then use Save, to keep them.)','Return without saving')))return;
+  PAF.dirty=false; PAF.cur=-2; pafView();
+}
+/* ---- Quotation -> Production ---- */
+function prodInit(){
+  PAF.prod={parts:PAF.qparts.map((p,i)=>{const r=(PAF.frozen||[])[i]||p.res||null;return {act:1,sel:0,sc:[{name:'Quoted (reference)',tag:'',why:'',snap:p.snap||jclone(S0),res:r},{name:'Scenario A',tag:'',why:'',snap:jclone(p.snap||S0),res:jclone(r)}]}}),opRev:0,hist:[]};
+}
+function modeSwitch(m,silent){
+  if(m===PAF.mode||PAF.busy)return; if(m==='prod'&&!PAF.lock)return;
+  pafCapture();
+  if(m==='prod'){
+    if(!PAF.prod)prodInit();
+    PAF.mode='prod'; if(PAF.status==='quoted'||PAF.status==='po')PAF.status='review'; if(!PAF.ev.review&&!silent)PAF.ev.review={at:new Date().toISOString(),by:PLAT.uid||''};
+    PAF.parts=PAF.qparts.map((p,i)=>{const pp=PAF.prod.parts[i],s=pp.sc[pp.act];return {desc:p.desc,grade:p.grade,quoted:p.quoted,no:p.no,snap:s.snap,res:s.res||null}});
+  }else{PAF.mode='quote';PAF.parts=PAF.qparts.map(jclone)}
+  PAF.live=Math.min(PAF.live,PAF.parts.length-1); snapPut(PAF.parts[PAF.live].snap||S0);
+  if(!silent)markDirty(); PAF.cur=-1; pafView();
+}
+function lockDialog(){return new Promise(res=>{
+  const o=document.createElement('div');o.className='rpt-ov';
+  o.innerHTML=`<div class="rpt-dlg" role="dialog" aria-modal="true" aria-label="Lock quote"><header><h2>Lock quote · PAF ${hx(PAF.no)}</h2></header><div class="bd"><p class="hint" style="font-size:14px;color:var(--fg)">Inputs and results of this quote will be frozen and cannot be edited afterwards.</p><label for="lk-appr">Approved by (commercial manager)</label><input id="lk-appr" type="text" maxlength="60" autocomplete="off"><label>Confirmation date</label><div class="num" id="lk-date" style="font-size:15px;font-weight:500"></div></div><footer><button type="button" data-a="0">Cancel</button><button type="button" class="go" data-a="1">Lock quote</button></footer></div>`;
+  const tick=()=>{o.querySelector('#lk-date').textContent=new Date().toLocaleString('en-US',{dateStyle:'medium',timeStyle:'medium'})}; tick(); const iv=setInterval(tick,1000);
+  const done=v=>{clearInterval(iv);o.remove();res(v)};
+  o.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.a==='1')done({approver:o.querySelector('#lk-appr').value.trim(),at:new Date().toISOString()});else done(null)};
+  document.body.appendChild(o);o.querySelector('#lk-appr').focus()})}
+async function lockQuote(){
+  if(PAF.busy||PAF.lock)return; flowMsg('');
+  if(!PAF.gen){flowMsg('Generate the PAF form first: the manager approves with the Excel in hand.');return}
+  if(!PAF.no.trim()){flowMsg('Enter the PAF # first.');return}
+  const bad=PAF.parts.map((p,i)=>pafOk(p)?null:pafLabel(i)).filter(Boolean); if(bad.length){flowMsg('Fill in description and Part # of: '+bad.join(', '));return}
+  const conf=await lockDialog(); if(!conf)return;
+  PAF.busy=true; const keep=PAF.live; pafCapture(); const saved=snapTake(), miss=[];
+  try{
+    for(let i=0;i<PAF.parts.length;i++){PAF.live=i;snapPut(PAF.parts[i].snap||S0);const r=resultsNow();PAF.parts[i].res=r;if(!(r.price>0&&r.qq>0&&Number.isFinite(r.mat)&&Number.isFinite(r.margin)))miss.push(pafLabel(i))}
+  }finally{snapPut(saved);PAF.live=keep;PAF.busy=false}
+  if(miss.length){flowMsg('Cannot lock yet. Set the material, Quoted quantity and Quoted price (blue box) in: '+miss.join(', '));return}
+  const was={status:PAF.status,lock:PAF.lock,qparts:PAF.qparts,frozen:PAF.frozen,qw:PAF.qWrite};
+  PAF.qparts=PAF.parts.map(jclone); PAF.frozen=PAF.parts.map(p=>J(p.res)); PAF.lock={at:conf.at,by:PLAT.uid||'',approver:conf.approver}; PAF.status='quoted'; PAF.qWrite=true;
+  if(PLAT.db){
+    try{await dbSave()}catch(e){Object.assign(PAF,{status:was.status,lock:was.lock,qparts:was.qparts,frozen:was.frozen,qWrite:was.qw});flowMsg('Could not lock: '+errTxt(e));return}
+  }else{PAF.dirty=true}
+  modeBar(); pafView(); flowMsg('Quote locked'+(PLAT.db?' and saved to the shared list.':'. Shared storage is unavailable: use Save PAF file.')+' Next: register the customer PO or open Production.',true);
+}
+async function markPO(){
+  const po=(($('fl-po')||{}).value||'').trim(); if(!po){flowMsg('Enter the customer PO #.');return}
+  PAF.po=po; PAF.ev.po={at:new Date().toISOString(),by:PLAT.uid||'',no:po}; if(PAF.status==='quoted')PAF.status='po'; markDirty(); await saveShared(); modeBar(); flowRender();
+}
+
+function genDone(){if(PAF.lock||PAF.mode!=='quote')return;PAF.gen={at:new Date().toISOString(),by:PLAT.uid||'',stale:false};markDirty();flowRender();modeBar()}
+/* ---- cover: workflow card ---- */
+const lockMin=()=>{try{const d=new Date(PAF.lock.at);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}catch(e){return ''}};
+function sentBox(ev){const fmt=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  if(ev.sent&&ev.sent.date)return `<span class="fc-lbl ok">Quote sent</span><small>${hx(fmt(ev.sent.date))}${ev.sent.by?' · <span data-uid="'+hx(ev.sent.by)+'">…</span>':''}</small><button type="button" class="fc-lnk" data-fl="sentedit">change</button>`;
+  return `<label class="fc-sent"><span class="fc-lbl ok">Quote sent</span><input type="date" data-fl="sent" ${PAF.lock?'min="'+lockMin()+'"':'disabled title="Lock the quote first"'}></label>`}
+function flowRender(){
+  const cv=$('pafcover'); let f=$('pafflow'); if(!f){f=document.createElement('div');f.id='pafflow';cv.insertBefore(f,cv.querySelectorAll(':scope > section')[2]||null)}
+  if(PAF.mode==='prod'&&PAF.prod&&!roNow()&&PAF.cur<0){try{pafCapture()}catch(e){}}   /* the PAF tab always shows what is in the calculator right now */
+  const fr=PAF.frozen||[], ev=PAF.ev||{}; let h='';
+  const stamp=(o,extra)=>o?`<small>${hx(when(o.at))}${o.by?' · <span data-uid="'+hx(o.by)+'">…</span>':''}${extra?' · '+hx(extra):''}</small>`:'';
+  const box=(cls,label,sub)=>`<div class="fc-box ${cls}"><span class="fc-t">${label}</span>${sub||''}</div>`;
+  const edge=inner=>`<div class="fc-edge">${inner}<i class="fc-arrow"></i></div>`;
+  const row1=`<div class="flowchart fc-r1" role="group" aria-label="Quotation sequence">${edge('<span class="fc-lbl">RFQ</span>'+(PAF.rfq?'<small>'+hx(new Date(PAF.rfq+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))+'</small>':''))}${box(PAF.gen?'done':'cur','Quoting cell',stamp(PAF.gen)+(PAF.gen&&PAF.gen.stale&&!PAF.lock?'<small class="stale">edited since generated</small>':''))}${edge('<button type="button" class="fc-btn" data-fl="gen">Generate PAF</button>')}${box(PAF.lock?'done':(PAF.gen?'cur':''),'Mgr Approval',PAF.lock?stamp(PAF.lock,PAF.lock.approver):'')}${`<div class="fc-edge fc-edge2">${(PAF.lock?'<span class="fc-lbl ok">Quote locked</span>':`<button type="button" class="fc-btn go" data-fl="lock" ${PAF.gen?'':'disabled title="Generate the PAF form first"'}>Lock quote</button>`)}<i class="fc-arrow"></i><div class="fc-below">${sentBox(ev)}</div></div>`}${box(ev.po?'done':(PAF.lock?'cur':''),'Customer',ev.po?stamp(ev.po,'PO '+ev.po.no):'')}</div>`;
+  const inProd=PAF.mode==='prod';
+  const row2=`<p class="fc-sec">After approval</p><div class="flowchart row2" role="group" aria-label="After approval">${edge('<span class="fc-lbl">Customer PO</span>')}${box(ev.po?'done':(!ev.review?'cur':''),'PO received',ev.po?stamp(ev.po,'PO '+ev.po.no):'')}${edge(inProd?'<span class="fc-lbl ok">Production open</span>':'<button type="button" class="fc-btn go" data-fl="prod">Open for Production</button>')}${box(ev.op?'done':(ev.review?'cur':''),'Production review',ev.review?stamp(ev.review):'')}${edge(`<button type="button" class="fc-btn go" data-fl="op" ${inProd?'':'disabled title="Open for Production first"'}>Generate Production Order</button>`)}${box(ev.op?'done':'','OP issued',ev.op?stamp(ev.op,'rev '+ev.op.rev):'')}</div>`;
+  const rowP=`<div class="flowchart" role="group" aria-label="Material review sequence">${edge('<span class="fc-lbl">PO'+(ev.po&&ev.po.no?' '+hx(ev.po.no):'')+'</span>'+(ev.po?stamp(ev.po):''))}${box(ev.op?'done':'cur','Material allocation',ev.review?stamp(ev.review):'')}${edge('<button type="button" class="fc-btn go" data-fl="op">Generate Production Order</button>')}${box(ev.op?'done':'','Production',ev.op?stamp(ev.op,'rev '+ev.op.rev):'')}</div>`;
+  const poRow=ev.po?'':`<div class="pafact"><div class="field" style="min-width:200px"><label for="fl-po">Customer PO #</label><input id="fl-po" type="text" maxlength="60" value="${hx(PAF.po)}" autocomplete="off"></div><button type="button" class="pbtn" data-fl="po">Mark PO received</button></div>`;
+  if(PAF.mode==='quote'&&!PAF.lock){
+    h=`<section class="card"><header><h2>Quotation</h2><span class="tag">Draft</span></header><div class="body flowb">${row1}<p class="note" style="margin:0"><b>Generate PAF</b> creates the Excel PAF form for the commercial manager. <b>Lock quote</b> is the manager's approval and unlocks after the PAF is generated: inputs and results (the calculation memorial) are then frozen inside this PAF.</p><span class="msg" id="flow-msg" role="status"></span></div></section>`;
+  }else if(PAF.mode==='quote'){
+    h=`<section class="card"><header><h2>Quotation · locked</h2><span class="tag">${hx(ST[PAF.status]||PAF.status)}</span></header><div class="body flowb">${row1}<p class="note" style="margin:0">Read-only: these are the official figures of the quote.</p>
+      <div class="tablewrap"><table class="ft"><thead><tr><th>Part #</th><th>Description</th><th>Material</th><th class="r">Material $/pc</th><th class="r">Machining $/pc</th><th class="r">Packaging $/pc</th><th class="r">Qty</th><th class="r">Price $/pc</th><th class="r">Margin</th></tr></thead><tbody>${PAF.parts.map((p,i)=>{const r=fr[i]||{};return `<tr><td class="num">${hx(pafLabel(i))}</td><td>${hx(p.desc)}</td><td>${hx(r.src||'')}</td><td class="r num">${fm(r.mat)}</td><td class="r num">${fm(r.mach)}</td><td class="r num">${fm(r.pack)}</td><td class="r num">${r.qq||''}</td><td class="r num"><b>${fm(r.price)}</b></td><td class="r num">${fp(r.margin)}</td></tr>`}).join('')}</tbody></table></div>
+      ${poRow}<span class="msg" id="flow-msg" role="status"></span></div></section>`;
+  }else{
+    const q=PAF.prod, hist=(q.hist||[]);
+    h=`<section class="card"><header><h2>Production · material strategy</h2><span class="tag">${hx(ST[PAF.status]||PAF.status)}</span></header><div class="body flowb">${rowP}<p class="note" style="margin:0">The quote memorial is frozen. In each part tab use the Scenarios bar to simulate materials, then pick here which scenario goes into the production order (OP). The first line of each part is the quote as sold.</p>
+      ${PAF.parts.map((p,i)=>{const pp=q.parts[i],qr=fr[i]||{};return `<h3 class="fh">${hx(pafLabel(i))} <span>${hx(p.desc)}</span></h3><div class="tablewrap"><table class="ft"><thead><tr><th>OP</th><th>Scenario</th><th>Strategy</th><th>Material</th><th class="r">Material $/pc</th><th class="r">Δ vs quote</th><th class="r">Margin</th><th class="r">Δ pts</th><th>Age</th></tr></thead><tbody>${pp.sc.map((s,k)=>{const r=s.res||{};return `<tr class="${pp.sel===k?'sel':''}"><td><input type="radio" name="opsel-${i}" data-fl="sel" data-i="${i}" data-k="${k}" ${pp.sel===k?'checked':''} aria-label="Use ${hx(s.name)} for the production order"></td><td>${hx(s.name)}${k===0?' <small>(locked quote)</small>':''}${s.why?'<small class="why">'+hx(s.why)+'</small>':''}</td><td>${hx(s.tag||'')}</td><td>${hx(r.src||'')}</td><td class="r num">${fm(r.mat)}</td><td class="r num">${k?dl(r.mat,qr.mat,2):''}</td><td class="r num">${fp(r.margin)}</td><td class="r num">${k?dl(r.margin*100,qr.margin*100,1):''}</td><td>${hx(r.age||'')}</td></tr>`}).join('')}</tbody></table></div>`}).join('')}
+      ${poRow}<span class="msg" id="flow-msg" role="status"></span>
+      ${hist.length?`<h3 class="fh">Production orders issued</h3><ul class="hist">${hist.slice().reverse().map(x=>`<li><b>OP rev ${x.rev}</b> · ${hx(when(x.at))} · <span data-uid="${hx(x.by)}">…</span> · ${(x.sel||[]).map(s=>hx(s.no)+': '+hx(s.name)).join(' · ')}</li>`).join('')}</ul>`:''}</div></section>`;
+  }
+  f.innerHTML=h; nameFill(f); modeBar();
+}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('button[data-fl]');if(!b)return;const a=b.dataset.fl;
+  if(a==='gen')pafGenerate();else if(a==='lock')lockQuote();else if(a==='po')markPO();else if(a==='prod')modeSwitch('prod');else if(a==='op')pafGenerate(true);else if(a==='sentedit'){delete PAF.ev.sent;markDirty();Promise.resolve(saveShared()).then(flowRender)}});
+document.addEventListener('change',e=>{const t=e.target;if(!t.dataset)return;
+  if(t.dataset.fl==='sel'&&PAF.prod){PAF.prod.parts[+t.dataset.i].sel=+t.dataset.k;markDirty();flowRender()}
+  else if(t.dataset.fl==='sent'){const v=t.value;if(!/^(20\d\d)-\d\d-\d\d$/.test(v)){if(v)return;return}if(v&&PAF.lock&&v<lockMin()){t.value='';flowMsg('Quote sent date cannot be before the manager approval ('+lockMin()+').');return}PAF.ev=PAF.ev||{};if(v)PAF.ev.sent={date:v,at:new Date().toISOString(),by:PLAT.uid||''};else delete PAF.ev.sent;markDirty();Promise.resolve(saveShared()).then(()=>{flowRender();modeBar()})}
+  else if(t.dataset.pc==='rfq'){flowRender()}
+  else if(t.id==='fl-po'){PAF.po=t.value.trim();markDirty()}});
+
+/* ---- cover fields read-only once locked / in Production ---- */
+function coverRO(){
+  const cv=$('pafcover'), lock=PAF.mode==='prod'||!!PAF.lock;
+  cv.querySelectorAll('.pafgrid input,.paftab input,.paftab button').forEach(e=>{e.disabled=lock&&e.dataset.pc!=='rfq'});
+  const no=cv.querySelector('[data-pc=no]'); if(no&&PAF.id)no.disabled=true;
+  const g=$('paf-gen'); if(g)g.hidden=true;
+}
+
+/* ---- Scenarios bar (Production) and locked-quote banner on each part ---- */
+function scBar(){
+  let b=$('scbar'); if(!b){b=document.createElement('div');b.id='scbar';$('parttitle').after(b)}
+  const i=PAF.cur;
+  if(i<0||(PAF.mode==='quote'&&!PAF.lock)){b.hidden=true;b.innerHTML='';return}
+  b.hidden=false;
+  if(PAF.mode==='quote'){b.className='scbar lockbar';b.innerHTML='<b>Quote locked · read-only.</b> <span id="sc-delta"></span>'}
+  else{
+    const q=PAF.prod.parts[i], s=q.sc[q.act]; b.className='scbar';
+    b.innerHTML=`<div class="sc-row"><span class="sc-k">Scenarios</span>${q.sc.map((c,k)=>`<button type="button" class="scchip ${k===q.act?'on':''}" data-sc="${k}">${hx(c.name||'Scenario')}${k===0?' · quote':''}</button>`).join('')}<button type="button" class="scchip add" data-scnew="1">+ New scenario</button></div>`+
+      (q.act>0?`<div class="sc-edit"><input data-scf="name" type="text" maxlength="40" value="${hx(s.name)}" aria-label="Scenario name"><select data-scf="tag" aria-label="Strategy"><option value="">Strategy…</option>${TAGS.map(t=>`<option ${s.tag===t?'selected':''}>${hx(t)}</option>`).join('')}</select><input data-scf="why" class="wide" type="text" maxlength="200" value="${hx(s.why||'')}" placeholder="Justification (why this material)" aria-label="Justification">${q.sc.length>2?'<button type="button" class="scdel" data-scdel="1">Delete</button>':''}</div>`:'<p class="note" style="margin:6px 0 0">Reference: the locked quote (read-only). Open or create a scenario to simulate another material.</p>')+'<div class="sc-delta" id="sc-delta"></div>';
+  }
+  scDelta();
+}
+function scDelta(){
+  const el=$('sc-delta'); if(!el||PAF.cur<0)return; let r; try{r=resultsNow()}catch(e){return}
+  if(!roNow()){try{pafCapture()}catch(e){}}   /* keep the in-memory scenario (snapshot + results) current, so the PAF tab never lags behind the part tab */
+  const qr=(PAF.frozen||[])[PAF.cur]||{};
+  if(PAF.mode==='quote'){
+    const drift=Number.isFinite(r.mat)&&Number.isFinite(qr.mat)&&Math.abs(r.mat-qr.mat)>0.005;
+    el.innerHTML=`Frozen quote: material ${fm(qr.mat)}/pc · price ${fm(qr.price)}/pc · margin ${fp(qr.margin)}`+(drift?` <span class="drift">Data changed since the quote: today the same inputs give ${fm(r.mat)}/pc (${dl(r.mat,qr.mat,2)}). The frozen figures remain the official ones.</span>`:'');
+  }else el.innerHTML=`Material <b>${fm(r.mat)}</b>/pc (${dl(r.mat,qr.mat,2)} vs quote) · margin <b>${fp(r.margin)}</b> (${dl(r.margin*100,qr.margin*100,1,' pts')}) · ${hx(r.src)}`;
+}
+let scT=0; const scSoon=()=>{if(!$('sc-delta'))return;clearTimeout(scT);scT=setTimeout(scDelta,450)};
+document.addEventListener('input',scSoon);document.addEventListener('change',scSoon);
+/* changes that do not fire input/change (Digger drag & drop, Combination, material cards, double-click) also refresh the comparison and mark the PAF as edited */
+(function(){const _r=window.render; if(typeof _r==='function')window.render=function(){const x=_r.apply(this,arguments);scSoon();return x}})();
+/* Production simulates the use of a Digger lot: once a lot is dropped on the Feedstock, its Unit Cost becomes the price source of the scenario (the user would otherwise still be costing with the price list) */
+document.addEventListener('drop',e=>{
+  if(PAF.mode!=='prod'||roNow())return; const fs=e.target.closest&&e.target.closest('.fs-drop'); if(!fs)return;
+  const card=fs.nextElementSibling; const cat=card&&card.id?card.id.replace('dg-',''):''; if(!cat)return;
+  setTimeout(()=>{try{const a=DG.applied; if(a&&a.cat===cat&&!a.mat&&a.i!=null&&typeof lotApplied==='function'&&lotApplied(cat)){DG.lot[cat]=true;({BL:render,RD:rRender,RN:qRender})[cat]();scSoon();markDirty()}}catch(err){}},60)},false);
+/* Combination "Clear" does nothing visible while a combined Feedstock is active: tell the user what to do first */
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('.dgclr'); if(!b)return;
+  const card=b.closest('.dg'); const cat=card&&card.id?card.id.replace('dg-',''):''; if(!cat)return;
+  let on=false; try{on=typeof mfOn==='function'&&mfOn(cat)}catch(err){}
+  if(!on)return;
+  e.stopImmediatePropagation(); e.preventDefault();
+  const box=b.closest('.dgcb')||card; box.querySelectorAll('.mfnote').forEach(x=>x.remove());
+  const m=document.createElement('div'); m.className='mfnote'; m.setAttribute('role','status');
+  m.textContent='A combined Feedstock is active. First click “Revert to single Feedstock” in the Feedstock box, then clear the Combination.';
+  const h=box.querySelector('.dgch'); if(h)h.after(m); else box.prepend(m);
+  clearTimeout(window.__mfnT); window.__mfnT=setTimeout(()=>m.remove(),9000);
+  const f=card.previousElementSibling; const rev=f&&f.querySelector('.mfrev'); if(rev){rev.classList.add('mfpulse');setTimeout(()=>rev.classList.remove('mfpulse'),2500);try{rev.scrollIntoView({block:'nearest',behavior:'smooth'})}catch(err){}}
+},true);
+['drop','click','dblclick'].forEach(t=>document.addEventListener(t,e=>{const el=e.target.closest&&e.target.closest('#calc .dg,#calc .matcard,#calc .fs-drop');if(!el||roNow())return;scSoon();if(t!=='click'||e.target.closest('button,li,.matcard')){markDirty();genStale()}},true));
+function scGo(i,k){const q=PAF.prod.parts[i]; if(k===q.act)return; pafCapture(); q.act=k; PAF.parts[i].snap=q.sc[k].snap; snapPut(q.sc[k].snap||S0); markDirty(); pafView()}
+function scNew(i){
+  const q=PAF.prod.parts[i]; pafCapture(); const base=q.sc[q.act], L='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  q.sc.push({name:'Scenario '+(L[q.sc.length-1]||q.sc.length),tag:'',why:'',snap:jclone(PAF.parts[i].snap||base.snap||S0),res:jclone(base.res||null)});
+  q.act=q.sc.length-1; PAF.parts[i].snap=q.sc[q.act].snap; snapPut(q.sc[q.act].snap); markDirty(); pafView();
+}
+function scDel(i){
+  const q=PAF.prod.parts[i]; if(q.act===0||q.sc.length<=2)return; const k=q.act; q.sc.splice(k,1);
+  if(q.sel===k)q.sel=0;else if(q.sel>k)q.sel--; q.act=Math.min(k,q.sc.length-1); PAF.parts[i].snap=q.sc[q.act].snap; snapPut(q.sc[q.act].snap||S0); markDirty(); pafView();
+}
+document.addEventListener('click',e=>{const c=e.target.closest&&e.target.closest('#scbar button');if(!c||PAF.mode!=='prod')return;const i=PAF.cur;
+  if(c.dataset.sc!=null)scGo(i,+c.dataset.sc);else if(c.dataset.scnew)scNew(i);
+  else if(c.dataset.scdel){if(c.dataset.sure!=='1'){c.dataset.sure='1';c.textContent='Delete?';setTimeout(()=>{if(c.isConnected){c.dataset.sure='';c.textContent='Delete'}},3000);return}scDel(i)}});
+document.addEventListener('input',e=>{const t=e.target;if(!t.dataset||!t.dataset.scf||PAF.mode!=='prod'||PAF.cur<0)return;const q=PAF.prod.parts[PAF.cur],s=q.sc[q.act];s[t.dataset.scf]=t.value;
+  if(t.dataset.scf==='name'){const ch=document.querySelector('#scbar .scchip.on');if(ch)ch.textContent=t.value||'Scenario'}});
+
+/* ---- All PAFs (shared list) ---- */
+const LS={f:{},s:{c:-1,d:1}};
+const LS_COLS=[['PAF #',''],['Customer',''],['Description',''],['Status',''],['Parts','r'],['Quoted total','r'],['Updated',''],['By','']];
+function listRender(){
+  const el=$('paflist'), L=PLAT.list;
+  el.innerHTML=`<section class="homehead"><div><h2 class="hh">All PAFs</h2><p class="hs">Start a new quotation or open a saved PAF. <span class="mb-d">build ${BUILD}</span></p></div><button type="button" class="pbtn go newbtn" data-ls="new">+ New PAF</button></section>
+  <section class="card"><header><h2>Saved PAFs</h2><span class="tag">Shared · ${L.length}</span></header><div class="body lsbody"><div class="lstools"><input id="ls-q" type="search" placeholder="Search PAF #, customer or description…" autocomplete="off"><button type="button" class="pbtn" data-ls="clr" id="ls-clr" hidden>Clear filters</button><span class="msg" id="ls-msg" role="status">${hx(PLAT.err)}</span></div>
+  <div class="tablewrap"><table class="ft lst"><thead><tr>${LS_COLS.map((c,i)=>`<th class="${c[1]}" aria-sort="${LS.s.c===i?(LS.s.d>0?'ascending':'descending'):'none'}"><span class="thw"><button type="button" class="srt" data-srt="${i}">${c[0]}<i class="ar">${LS.s.c===i?(LS.s.d>0?'▲':'▼'):'↕'}</i></button><button type="button" class="fbt${LS.f[i]?' on':''}" data-fbt="${i}" aria-label="Filter ${c[0]}"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 2h10L7 6.5V10L5 9V6.5z" fill="currentColor"/></svg></button></span></th>`).join('')}<th></th></tr></thead>
+  <tbody>${L.map(r=>{const tot=(r.parts||[]).reduce((s,p)=>s+(Number.isFinite(p.price)&&Number.isFinite(p.qty)?p.price*p.qty:0),0);return `<tr data-q="${hx(((r.no||'')+' '+(r.cust||'')+' '+(r.desc||'')).toLowerCase())}" data-tot="${tot}" data-at="${hx(r.at||'')}"><td class="num"><b>${hx(r.no)}</b></td><td>${hx(r.cust)}</td><td>${hx(r.desc)}</td><td><span class="chip st-${hx(r.status)}">${hx(ST[r.status]||r.status)}</span></td><td class="r num">${r.n||''}</td><td class="r num">${tot?fm(tot):'—'}</td><td>${hx(when(r.at))}</td><td data-uid="${hx(r.by)}">…</td><td class="r"><button type="button" class="pbtn" data-ls="open" data-id="${hx(r.id)}">Open</button> <button type="button" class="pbtn dng" data-ls="del" data-id="${hx(r.id)}" data-no="${hx(r.no)}" aria-label="Delete PAF ${hx(r.no)}">Delete</button></td></tr>`}).join('')||'<tr><td colspan="9" class="lsempty">No PAFs saved yet. Create one with “New PAF”, fill it in and press “Save”.</td></tr>'}</tbody>
+  <tfoot><tr><td colspan="5" class="r"><b id="ls-cnt"></b></td><td class="r num"><b id="ls-tot"></b></td><td colspan="3"></td></tr></tfoot></table></div></div></section>`;
+  lsFilter();
+  nameFill(el); lsFilter();
+}
+async function pafDelete(id,no,btn){
+  if(!PLAT.db||!id)return;
+  const row=(PLAT.list||[]).find(r=>r.id===id)||{};
+  const ok=await askUI('Delete PAF '+(no||id)+(row.cust?' ('+row.cust+')':'')+' permanently? The quote, locked figures, production scenarios and OP history stored in this PAF will be lost for everyone. This cannot be undone.','Delete PAF');
+  if(!ok)return;
+  try{if(btn)btn.disabled=true;
+    for(const p of ['data/quote','data/prod'])await PLAT.db.doc('pafs/'+id+'/'+p).delete();
+    await PLAT.db.doc('pafs/'+id).delete();
+    if(PAF.id===id){pafReset();PAF.cur=-2;PAF.dirty=false}
+    pafView();const m=$('ls-msg');if(m)m.textContent='PAF '+(no||id)+' deleted.'
+  }catch(err){if(btn)btn.disabled=false;const m=$('ls-msg');if(m)m.textContent=errTxt(err);else mbMsg(errTxt(err))}}
+function lsFilter(){const root=$('paflist');if(!root)return;const q=($('ls-q')?$('ls-q').value:'').toLowerCase().trim();const tb=root.querySelector('tbody');if(!tb)return;
+  const rows=[...tb.querySelectorAll('tr[data-q]')];let cnt=0,tot=0;
+  rows.forEach(r=>{let ok=!q||r.dataset.q.includes(q);if(ok)for(const k in LS.f){const v=(LS.f[k]||'').toLowerCase().trim();if(!v)continue;if(+k===5){if(!(+r.dataset.tot>=+v)){ok=false;break}}else{const t=(r.cells[+k].textContent||'').toLowerCase();if(+k===3?t!==v:!t.includes(v)){ok=false;break}}}r.hidden=!ok;if(ok){cnt++;tot+=+r.dataset.tot}});
+  if(LS.s.c>=0){const c=LS.s.c,d=LS.s.d;const key=r=>c===5?+r.dataset.tot:c===4?(+r.cells[4].textContent||0):c===6?r.dataset.at:(r.cells[c].textContent||'').toLowerCase();rows.sort((x,y)=>{const a=key(x),b=key(y);return (a>b?1:a<b?-1:0)*d});rows.forEach(r=>tb.appendChild(r))}
+  const cl=$('ls-clr');if(cl)cl.hidden=!(q||Object.values(LS.f).some(Boolean));
+  const c=$('ls-cnt'),t=$('ls-tot');if(c)c.textContent=cnt+' of '+rows.length+' PAFs · Total quoted';if(t)t.textContent=fm(tot);
+  root.querySelectorAll('.fbt').forEach(b=>b.classList.toggle('on',!!LS.f[b.dataset.fbt]))}
+function lsPop(btn){lsPopClose();const i=+btn.dataset.fbt,r=btn.getBoundingClientRect();const p=document.createElement('div');p.id='ls-pop';p.className='lspop';
+  const cur=LS.f[i]||'';let ctl;
+  if(i===3)ctl=`<select aria-label="Status"><option value="">All</option>${Object.keys(ST).map(k=>`<option value="${hx(ST[k])}" ${ST[k]===cur?'selected':''}>${hx(ST[k])}</option>`).join('')}</select>`;
+  else ctl=`<input ${i===5?'type="number" min="0" step="any" placeholder="Minimum $"':'type="search" placeholder="Contains…"'} value="${hx(cur)}" aria-label="Filter">`;
+  p.innerHTML=`<b>${hx(LS_COLS[i][0])}</b>${ctl}<div class="lspa"><button type="button" class="pbtn" data-pop="clr">Clear</button></div>`;
+  document.body.appendChild(p);const w=230;p.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left-w+r.width+4))+'px';p.style.top=(r.bottom+6)+'px';
+  const c=p.querySelector('input,select');c.focus();const set=()=>{LS.f[i]=c.value;lsFilter()};c.addEventListener('input',set);c.addEventListener('change',set);c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();lsPopClose()}});
+  p.querySelector('[data-pop=clr]').addEventListener('click',()=>{c.value='';set();lsPopClose()})}
+function lsPopClose(){const p=$('ls-pop');if(p)p.remove()}
+document.addEventListener('click',e=>{const s=e.target.closest&&e.target.closest('button[data-srt]');if(s){const i=+s.dataset.srt;LS.s=LS.s.c===i?{c:i,d:-LS.s.d}:{c:i,d:1};listRender();return}
+  const f=e.target.closest&&e.target.closest('button[data-fbt]');if(f){const open=$('ls-pop')&&$('ls-pop').dataset.for===f.dataset.fbt;lsPopClose();if(!open){lsPop(f);$('ls-pop').dataset.for=f.dataset.fbt}return}
+  if(!(e.target.closest&&e.target.closest('#ls-pop')))lsPopClose()});
+window.addEventListener('scroll',()=>lsPopClose(),true);
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('button[data-ls]');if(!b)return;
+  if(b.dataset.ls==='del'){await pafDelete(b.dataset.id,b.dataset.no,b);return}
+  if(b.dataset.ls==='clr'){LS.f={};const q=$('ls-q');if(q)q.value='';lsFilter();return}
+  if(b.dataset.ls==='new'){if(PAF.dirty&&!(await askUI('Discard the unsaved changes of the PAF on screen and start a new one?','Discard')))return;pafNew()}
+  else if(b.dataset.ls==='open'){if(PAF.dirty&&!(await askUI('Discard the unsaved changes of the PAF on screen and open this one?','Discard and open')))return;
+    try{b.disabled=true;await dbLoad(b.dataset.id);pafView()}catch(err){b.disabled=false;const m=$('ls-msg');if(m)m.textContent=errTxt(err)}}});
+document.addEventListener('input',e=>{if(e.target.id==='ls-q')lsFilter()});
+
+/* ---- file backup (v2 holds quote + production; v1 files still open) ---- */
+function pafDocs(){const lp=PAF.lock||PAF.mode==='prod';return J({meta:metaNow(PAF.rev||0,new Date().toISOString()),quote:{parts:(lp&&PAF.qparts?PAF.qparts:PAF.parts).map(pstrip),frozen:PAF.frozen||null},prod:PAF.prod||null})}
+async function pafSave(){
+  if(PAF.busy)return; pafCapture();
+  try{pafMsg('Saving...',true);await pafDownload(new Blob([JSON.stringify({app:'ei6-paf',v:2,docs:pafDocs()})],{type:'application/json'}),pafFile('json').replace(/\.json$/,'.ei6paf.json'));pafMsg('PAF file saved.',true)}
+  catch(err){pafMsg(err&&err.code==='declined'?'Download cancelled.':(err&&err.message)||'Could not save the file.')}
+}
+async function pafOpen(file){
+  try{
+    const d=JSON.parse(await file.text());
+    if(d&&d.app==='ei6-paf'&&d.v===2&&d.docs){pafApply(d.docs);PAF.id='';PAF.rev=0;PAF.qWrite=true;PAF.dirty=true;pafView();pafMsg('PAF file opened. Use “Save” to store it in the shared list.',true);return}
+    pafReset(); return pafOpenOld(file);
+  }catch(err){pafMsg((err&&err.message)||'Could not open the file.')}
+}
+
+/* ---- production order (Excel): chosen scenario per part + sheet "Quote vs OP" ---- */
+const opSnap=i=>{const q=PAF.prod.parts[i];return q.sc[q.sel].snap||S0};
+const pafFileOP=()=>'OP rev '+(((PAF.prod&&PAF.prod.opRev)||0)+1)+' - '+pafFileX();
+function opCompareSheet(wb,rows,opRes){
+  const ws=wb.addWorksheet('Quote vs OP',{views:[{showGridLines:false}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+  const B='FF16407A',Wt='FFFFFFFF',num=v=>Number.isFinite(v)?v:'';
+  [14,24,22,22,36,36,13,36,13,13,9,13,12,12,13].forEach((w,i)=>ws.getColumn(i+1).width=w);
+  const t=ws.addRow(['Ei6 · Production order vs quote · PAF # '+PAF.no+' · OP rev '+((PAF.prod.opRev||0)+1)]);t.font={name:'Arial',size:13,bold:true,color:{argb:B}};
+  ws.addRow([]);
+  const h=ws.addRow(['Part #','Description','Scenario used for OP','Strategy','Justification','Quote material','Quote mat $/pc','OP material','OP mat $/pc','Δ mat $/pc','Qty','Δ total $','Quote margin','OP margin','Δ margin (pts)']);
+  h.eachCell(c=>{c.font={name:'Arial',size:10,bold:true,color:{argb:Wt}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:B}};c.alignment={vertical:'middle',wrapText:true}});h.height=30;
+  PAF.prod.parts.forEach((q,i)=>{
+    const sc=q.sc[q.sel],qr=(PAF.frozen||[])[i]||{},or=opRes[i]||{},n=ws.rowCount+1;
+    const r=ws.addRow([pafLabel(i),PAF.parts[i].desc,sc.name,sc.tag||'',sc.why||'',qr.src||'',num(qr.mat),or.src||'',num(or.mat),'',num(or.qq||qr.qq),'',num(qr.margin),num(or.margin),'']);
+    r.getCell(10).value={formula:`IF(AND(ISNUMBER(G${n}),ISNUMBER(I${n})),I${n}-G${n},"")`};
+    r.getCell(12).value={formula:`IF(AND(ISNUMBER(J${n}),ISNUMBER(K${n})),J${n}*K${n},"")`};
+    r.getCell(15).value={formula:`IF(AND(ISNUMBER(M${n}),ISNUMBER(N${n})),(N${n}-M${n})*100,"")`};
+    [7,9,10,12].forEach(c=>r.getCell(c).numFmt='"$" #,##0.00;[Red]-"$" #,##0.00');[13,14].forEach(c=>r.getCell(c).numFmt='0.0%');r.getCell(15).numFmt='0.0;[Red]-0.0';
+    r.eachCell(c=>{c.font=c.font||{};c.font={name:'Arial',size:10};c.alignment={vertical:'top',wrapText:true};c.border={bottom:{style:'thin',color:{argb:'FFD9E0EA'}}}});
+  });
+  ws.addRow([]);const n2=ws.addRow(['Quote figures are the frozen ones locked on '+when(PAF.lock&&PAF.lock.at)+'. OP figures are recalculated with the data at export time; the price per piece is the quoted one.']);n2.font={name:'Arial',size:9,italic:true,color:{argb:'FF5B6B80'}};
+}
+async function opAfterExport(){
+  const pr=PAF.prod; pr.opRev=(pr.opRev||0)+1;
+  pr.hist=(pr.hist||[]).concat([{rev:pr.opRev,at:new Date().toISOString(),by:PLAT.uid||'',sel:pr.parts.map((q,i)=>({no:pafLabel(i),name:q.sc[q.sel].name,tag:q.sc[q.sel].tag||'',why:q.sc[q.sel].why||''}))}]);
+  PAF.status='op'; PAF.ev.op={at:new Date().toISOString(),by:PLAT.uid||'',rev:pr.opRev}; markDirty();
+  if(PLAT.db){try{const rev=await dbSave();mbMsg('Saved · v'+rev+' · '+when(PAF.at))}catch(e){mbMsg('Production order exported but NOT saved to the shared list: '+errTxt(e),true)}}
+  modeBar(); flowRender();
+}
+
+/* ---- boot: shared storage ---- */
+async function platBoot(){
+  try{
+    const [db,user]=(window.claude&&claude.use)?await Promise.all([claude.use('db'),claude.use('user')]):[WEBDB,WEBUSER];
+    PLAT.db=db||null; PLAT.user=user||null;
+    if(user){try{PLAT.uid=await user.id()}catch(e){} try{PLAT.cw=user.can?await user.can('data.write'):null}catch(e){}}
+    if(!PLAT.db){modeBar();return}
+    PLAT.db.collection('pafs').orderBy('at','desc').limit(300).onSnapshot(s=>{PLAT.list=s.docs.map(d=>({id:d.id,...d.data()}));PLAT.err='';if(PAF.cur===-2)listRender()},e=>{PLAT.err='Could not read the shared list ('+((e&&e.code)||'error')+').';if(PAF.cur===-2)listRender()});
+    if(!PAF.dirty&&!PAF.id&&!PAF.no&&PAF.cur===-1)PAF.cur=-2;
+    pafView();
+  }catch(e){PLAT.err=errTxt(e);modeBar()}
+}
+
 S0=snapTake();
 pafView();
+platBoot();
 /*WEB:BEGIN*/
 /* Reads the three source workbooks and returns the JSON the tool stores in the `datasets` table.
    Works on an ExcelJS workbook (browser or node). Nothing here touches the network. */

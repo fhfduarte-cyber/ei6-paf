@@ -39,7 +39,7 @@ ever discontinued, the `src/` classes run unchanged on any PHP 8.3 host (Railway
 ```bash
 ./tests/run_servers.sh            # mock Supabase :54321 + PHP :8081  (APP_ENV=local)
 python3 tests/api_test.py         # 40 API/security checks
-python3 tests/e2e.py              # browser end-to-end under the real CSP (needs playwright + exceljs in /tmp/xl)
+python3 tests/e2e.py              # browser end-to-end under the real CSP: All PAFs list, save/open, lock quote, production scenarios, PAFs saved by older versions (needs playwright + exceljs in /tmp/xl)
 psql -f tests/rls.sql             # RLS/trigger checks on a scratch Postgres (needs a stub of Supabase's auth schema, see header of the file)
 ```
 Against a real project use `APP_ENV=local php -S 127.0.0.1:8081 api/index.php` with the env vars set.
@@ -57,3 +57,6 @@ tests/                   mock Supabase + API and E2E tests
 
 ## Depreciation model (v5)
 Workbook `Depreciation_model_proposal_v5.xlsx`: **PFR** = Blocks, **PRD-N** = Rods, **PDF-N** = Rounds (Rounds tab: OD ≥ 30" → PDF-N, OD < 30" → PRD-N). Offall value = MAX(floor, P0 × R) with fixed Remnant / Scrap values below the thresholds (scrap = $0); depreciation = 1 − value ÷ P0 of the sheet. Nominal length / volume are the sheet's; offall is new, so the non-aged R_A is used. Migration `0004_depreciation_v5.sql` loads the values (the app also carries them as built-in defaults). `tests/dep_lots.py <workbook>` re-checks the formulas against every lot in the workbook.
+
+## PAF v2 (All PAFs list, locked quote, production)
+Run `supabase/migrations/0006_paf_v2.sql` (adds `pafs.meta`, used by the list) **before** deploying; until it runs the list still opens, but saving a PAF fails with a message pointing to the migration. A PAF is one row: `payload = {v:2, meta, quote, prod}`; PAFs saved by earlier versions (`payload.parts`) open as unlocked Drafts and become v2 on their next save. The page talks to the same documents it uses in the standalone build through `WEBDB` (templates/app.html), which maps them onto `/api/pafs`.
