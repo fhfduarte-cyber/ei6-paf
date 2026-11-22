@@ -1013,10 +1013,11 @@ function dgComboToggle(cat,i){
   DG.combo=DG.combo||{}; const L=DG.combo[cat]=DG.combo[cat]||[], at=L.findIndex(x=>x.i===i);
   if(at>=0)L.splice(at,1);
   else{
-    const Q=DG.qtot[cat]||0, used=L.reduce((t,x)=>t+x.n,0), left=Q-used, r=DIGGER_DATA[i];
+    const Q=DG.qtot[cat]||0, used=L.reduce((t,x)=>t+x.n,0), r=DIGGER_DATA[i]; let left=Q-used;
     const sim=dgSim(cat,r,Q); if(!sim){dgComboMsg(cat,'This lot does not work as a Feedstock for this calculation.');return}
     const avail=r[0]===1?1:r[5], cap=Math.max(1,sim.mx||Q)*avail;
-    if(left<=0){dgComboMsg(cat,'The combination already covers all '+Q+' pcs. Remove a lot or lower its pieces first.');return}
+    if(left<=0){   /* complete: the new lot takes 1 pc from the last lot added (that lot leaves the combination when it reaches 0) */
+      const j=L.length-1; L[j].n-=1; if(L[j].n<=0)L.splice(j,1); left=1}
     L.push({i,n:Math.min(cap,left),cap});
   }
   dgComboRender(cat); dgSyncAdd(cat);
@@ -1036,7 +1037,7 @@ function dgComboRender(cat){
     if(!sim)warn='does not work as the Feedstock';
     else{ if(sim.N>avail)warn=`needs ${sim.N} Feedstock pcs, only ${avail} available`; if(pk)cost=sim.calcKg*pk.perKg; else warn=warn||'no Unit Cost in the report' }
     if(isFinite(cost))tot+=cost; else ok=false;
-    return `<li data-k="${k}"><span class="cl"><b>${r[3]}</b><small>${r[0]===1?'Offall':'Nominal'} · ${dgSize(r)} ${LUl()}</small></span><label class="cn"><input type="number" min="1" max="${max}" step="1" value="${x.n}" data-k="${k}" aria-label="Pieces made from this lot"> pcs</label><span class="cc num">${isFinite(cost)?d2(cost)+' <small>('+d2(cost/x.n)+'/pc)</small>':'—'}</span><button type="button" class="dgrm" data-k="${k}" aria-label="Remove this lot">✕</button>${warn?`<span class="dgshort">${warn}</span>`:''}</li>`}).join('');
+    return `<li data-k="${k}"><span class="cl"><b>${r[3]}</b><small>${r[0]===1?'Offall':'Nominal'} · ${dgSize(r)} ${LUl()}</small></span><label class="cn"><input type="number" min="0" max="${max}" step="1" value="${x.n}" data-k="${k}" aria-label="Pieces made from this lot (0 removes the lot)"> pcs</label><span class="cc num">${isFinite(cost)?d2(cost)+' <small>('+d2(cost/x.n)+'/pc)</small>':'—'}</span><button type="button" class="dgrm" data-k="${k}" aria-label="Remove this lot">✕</button>${warn?`<span class="dgshort">${warn}</span>`:''}</li>`}).join('');
   const miss=Q-cov, avg=tot/(cov||1);
   const cmp=!ok?'':!isFinite(base)||!(base>0)?`Average ${d2(avg)} per piece. Select a material in Material cost to compare.`
     :(()=>{const diff=base-avg,pc=Math.abs(diff)/base*100; return `Average <b>${d2(avg)}</b> per piece vs ${d2(base)} with the selected Material cost, ${Math.abs(diff)<0.005?'the same cost':diff>0?`<span class="dgsave">${d2(diff)} less per piece (−${nf(pc,1)}%)</span>`:`<span class="dgmore">${d2(diff)} more per piece (+${nf(pc,1)}%)</span>`}.`})();
@@ -1044,7 +1045,7 @@ function dgComboRender(cat){
   { const fb=o.querySelector('.dgfeed'); if(fb)fb.onclick=()=>dgApplyCombo(cat) }
   { const cb=o.querySelector('.dgcb[draggable]'); if(cb){cb.addEventListener('dragstart',e=>{if(e.target!==cb)return;DG.drag={cat,combo:true};cb.classList.add('dragging');e.dataTransfer.effectAllowed='copy';try{e.dataTransfer.setData('text/plain','combination')}catch(_){}});cb.addEventListener('dragend',()=>{cb.classList.remove('dragging');DG.drag=null;document.querySelectorAll('.fs-drop').forEach(x=>x.classList.remove('dg-over'))})} }
   const ub=o.querySelector('.dguse'); if(ub)ub.onclick=()=>{const m=manSt(cat); m.on=true; m.v=String(Math.round(avg*100)/100); m.cv=m.v; m.note='average of '+L.length+' lot'+(L.length>1?'s':'')+': '+L.map(x=>DIGGER_DATA[x.i][3]+' × '+x.n).join(', '); ({BL:render,RD:rRender,RN:qRender})[cat]()};
-  o.querySelectorAll('input[type=number]').forEach(i=>i.addEventListener('change',()=>{const k=+i.dataset.k, x=L[k]; const others=L.reduce((t,y,j)=>j===k?t:t+y.n,0); x.n=Math.max(1,Math.min(Math.round(+i.value)||1,x.cap,Math.max(1,Q-others))); dgComboRender(cat)}));
+  o.querySelectorAll('input[type=number]').forEach(i=>i.addEventListener('change',()=>{const k=+i.dataset.k, x=L[k]; if(Math.round(+i.value)<=0&&i.value!==''){L.splice(k,1);dgComboRender(cat);dgSyncAdd(cat);return} const others=L.reduce((t,y,j)=>j===k?t:t+y.n,0); x.n=Math.max(1,Math.min(Math.round(+i.value)||1,x.cap,Math.max(1,Q-others))); dgComboRender(cat)}));
   o.querySelectorAll('.dgrm').forEach(b=>b.onclick=()=>{L.splice(+b.dataset.k,1);dgComboRender(cat);dgSyncAdd(cat)});
   const c=o.querySelector('.dgclr'); if(c)c.onclick=()=>{DG.combo[cat]=[];dgComboRender(cat);dgSyncAdd(cat)};
 }
