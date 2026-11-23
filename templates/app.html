@@ -619,6 +619,8 @@ body.prod #modebar .mb-r>[data-act=save]::before{border-left-color:#6997AD}
           <div class="field"><label for="nH">H · height</label><div class="inp"><input id="nH" type="number" min="1" step="any" value="508"><span>mm</span></div></div>
           <div class="field"><label for="nL">L · length</label><div class="inp"><input id="nL" type="number" min="1" step="any" value="1829"><span>mm</span></div></div>
           <div class="field wide"><label for="dens">D · density</label><div class="inp"><input id="dens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div></div>
+          <div class="field wide"><label for="bStrat">Block strategy</label><select id="bStrat" title="Optimize offall: blocks are filled with the best single arrangement and the cuts with the lowest depreciation. Optimize yield: each block is filled with as many pieces as it holds (more groups in the Offalls) before another block is used."><option value="offall">Optimize offall</option><option value="yield">Optimize yield</option></select></div>
+          <div class="field wide"><div class="note" id="bStratCmp" aria-live="polite"></div></div>
           <div class="subhead">Block weight</div>
           <dl class="dl num pw" id="nomw"></dl>
         </div></div>
@@ -766,7 +768,7 @@ const AX=['W','H','L'];
 const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
 const COLORS=['--off1','--off2','--off3','--off4','--off5'];
 let MIXON=false;
-const dn=id=>MIXON?(id?'Group B (other orientation)':'Group A'):(id?'Demanded Part(s) II':'Demanded Part(s) I');
+const dn=id=>MIXON?(id?'Group '+String.fromCharCode(65+id)+' (other orientation)':'Group A'):(id?'Demanded Part(s) II':'Demanded Part(s) I');
 const KG_LB_=0.45359237;
 /* 2026 Ei6 Machining price list_detail_Oct26.xlsx, aba "2026 Master Price List": coluna "Nominal Size" e "Price Per lb" (só itens com preço). Seções "Blocks", "PF Blocks", "SEC", "PFR-N Blocks" e "ISO Blocks". kg = $/lb ÷ 0,45359237. */
 const PRICE_SAMPLE=false;
@@ -907,7 +909,7 @@ function dgCalc(cat,res){
   const kgOf=pieceWeight(), I=res.I, multi=A.N>1;
   const optE=e=>e.r.opts[Math.min(state.sel,e.r.opts.length-1)];
   let loss=0; A.list.forEach(e=>{loss+=e.n*optE(e).floss});
-  const dems=res.mix?[{id:0,Q:I.Q}]:res.dems.map(x=>({id:x.id,Q:multi?n:x.Q}));
+  const dems=res.mix?[{id:0,Q:multi?n:I.Q}]:res.dems.map(x=>({id:x.id,Q:multi?n:x.Q}));
   const wP=dems.reduce((t,x)=>t+kgOf[x.id]*x.Q,0);
   return {n,wP,loss,calcKg:wP+loss,N:A.N,mx:A.mx};
 }
@@ -1191,7 +1193,7 @@ function matchDev(sizeMm){
 function readIn(){
   const g=gv;
   return {N:[g('nW'),g('nH'),g('nL')],D:g('dens'),P:[g('dW'),g('dH'),g('dL')],A:[g('aW')||0,g('aH')||0,g('aL')||0],Q:Math.round(g('qty')),
-    P2:[g('d2W'),g('d2H'),g('d2L')],A2:[g('a2W')||0,g('a2H')||0,g('a2L')||0],Q2:Math.round(g('qty2')),on2:COMBINED_ON&&$('d2on').checked};
+    P2:[g('d2W'),g('d2H'),g('d2L')],A2:[g('a2W')||0,g('a2H')||0,g('a2L')||0],Q2:Math.round(g('qty2')),on2:COMBINED_ON&&$('d2on').checked,S:($('bStrat')&&$('bStrat').value)==='yield'?'yield':'offall'};
 }
 function offalls(N,v,order){
   const [a,b,c]=order, mk=()=>({size:[...N],pos:[0,0,0]});
@@ -1271,8 +1273,53 @@ function failMsg(f,label){
   return `The ${f.Q} ${label} pieces do not fit in 1 Feedstock block (${nd}). <b>Maximum per block: ${f.mx.n} pieces</b>, in a ${f.mx.g.join(' × ')} arrangement (W × H × L). ${f.Q} pieces would need ${Math.ceil(f.Q/f.mx.n)} blocks.`;
 }
 function bAgg(list,I){let N=0;list.forEach(e=>N+=e.n);return {N,Q:I.Q,list}}
+/* ---- Optimize yield: a block is consumed (more groups of the same piece in its Offalls, any orientation) before the next block is opened ---- */
+const GCOL=['--demand','--demand2','--good','--secondary'], YMEMO=new Map();
+function yHole(size,rem,I,pc,depth){
+  const mx=maxPerBlock(size,pc).n; if(rem<=0||mx<1)return null;
+  const key=size.map(x=>x.toFixed(2)).join('|')+'#'+Math.min(rem,1e6)+'#'+depth+'#'+pc.join(',')+'#'+I.D;
+  if(YMEMO.has(key))return YMEMO.get(key);
+  const q=Math.min(rem,mx), core=solveCore(size,I.D,I.P,I.A,q); let best=null;
+  if(!core.fail)for(const c of core.cands.slice(0,depth?3:6)){
+    const op=c.opts[0], env={pos:[0,0,0],size:c.v,grid:c.perm.map(i=>c.fact[i]),q}, sub=yHoles(op.list,rem-q,I,pc,depth+1);
+    const placed=q+sub.placed, loss=sub.fl.reduce((t,o)=>t+o.dev*o.kg,0);
+    if(!best||placed>best.placed||(placed===best.placed&&loss<best.loss-1e-9))best={placed,loss,envs:[env,...sub.envs],fl:sub.fl};
+  }
+  if(YMEMO.size>4000)YMEMO.clear(); YMEMO.set(key,best); return best;
+}
+function yHoles(list,rem,I,pc,depth){
+  const envs=[],fl=[],res=new Map(); let placed=0;
+  if(depth<=3)list.map((o,i)=>i).filter(i=>!list[i].empty).sort((a,b)=>list[b].vol-list[a].vol).forEach(i=>{
+    if(rem-placed<=0)return; const r=yHole(list[i].size,rem-placed,I,pc,depth); if(r&&r.placed>0){res.set(i,r);placed+=r.placed}});
+  list.forEach((o,i)=>{ if(o.empty)return; const r=res.get(i); if(!r){fl.push(o);return}
+    r.envs.forEach(e=>envs.push({...e,pos:e.pos.map((q,k)=>q+o.pos[k])}));
+    r.fl.forEach(x=>fl.push({...x,pos:x.pos.map((q,k)=>q+o.pos[k])}))});
+  return {envs,fl,placed};
+}
+function yBlock(I,rem){
+  const pc=I.P.map((p,i)=>p+I.A[i]), mx=maxPerBlock(I.N,pc).n, q1=Math.min(rem,mx);
+  return runDems({...I,Q:q1},[{id:0,P:I.P,A:I.A,Q:q1}],14,null,{rem:rem-q1,pc});
+}
+function solveYield(I){
+  const bad=a=>a.some(x=>!(x>0));
+  if(bad([...I.N,...I.P,I.D,I.Q]))return solveI(I);
+  MIXON=false;
+  const rf=yBlock(I,1e9); if(rf.error)return rf;
+  const cap=rf.opts[0].placed, list=[]; let res;
+  if(I.Q<=cap){const r=I.Q===cap?rf:yBlock(I,I.Q); if(r.error)return r; list.push({n:1,r}); res=Object.assign({},r)}
+  else{
+    const nFull=Math.floor(I.Q/cap), rem=I.Q-nFull*cap; list.push({n:nFull,r:rf});
+    if(rem){const rl=yBlock(I,rem); if(rl.error)return rl; list.push({n:1,r:rl})}
+    res=Object.assign({},rf);
+  }
+  res.agg=bAgg(list,I);
+  if(list.length>1||list[0].n>1){res.agg.mx=cap; res.agg.nFull=list[0].n; res.agg.rem=list.length>1?list[1].r.opts[0].placed:0}
+  MIXON=list.some(e=>e.r.opts[0].envs.length>1);
+  return res;
+}
 function solve(){
   const I=readIn(); {const L=mfLots('BL',I.Q); if(L&&!I.on2)return solveMulti('BL',I,L)}
+  if(I.S==='yield'&&!I.on2)return solveYield(I);
   const r=solveI(I);
   if(!r.error){r.agg=bAgg([{n:1,r}],I);return r}
   if(I.on2||!(I.Q>1)||[...I.N,...I.P,I.D,I.Q].some(x=>!(x>0))) return r;
@@ -1328,7 +1375,7 @@ function tryMix(I,base){
   }
   return base;
 }
-function runDems(I,dems,poolN,forceSeq){
+function runDems(I,dems,poolN,forceSeq,Y){
   dems.forEach(d=>{d.pc=d.P.map((p,i)=>p+d.A[i]);d.vol=d.pc[0]*d.pc[1]*d.pc[2]*d.Q});
   const seq=forceSeq||[...dems].sort((a,b)=>b.vol-a.vol);   // o de maior volume é cortado primeiro
   const first=seq[0], second=seq[1]||null;
@@ -1336,23 +1383,26 @@ function runDems(I,dems,poolN,forceSeq){
   if(core.fail) return {error:failMsg(core,dn(first.id))};
   const col=d=>d.id?'--demand2':'--demand';
   /* With two demands, the orientation of Part I is judged by the final result (Part I + Part II in the leftovers), not by Part I alone. */
-  const pool=second?core.cands.slice(0,poolN||14):[core];
+  const pool=(second||Y)?core.cands.slice(0,poolN||14):[core];
   let pick=null, firstErr=null;
   pool.forEach(c=>{
     const r=build(c);
     if(r.error){firstErr=firstErr||r;return}
-    const sc=r.opts[0].floss, bg=Math.max(0,...r.opts[0].fl.map(o=>o.vol));
-    if(!pick||sc<pick.sc-1e-9||(Math.abs(sc-pick.sc)<1e-9&&bg>pick.bg))pick={r,sc,bg};
+    const sc=r.opts[0].floss, bg=Math.max(0,...r.opts[0].fl.map(o=>o.vol)), pl=Y?r.opts[0].placed:0;
+    if(!pick||pl>pick.pl||(pl===pick.pl&&(sc<pick.sc-1e-9||(Math.abs(sc-pick.sc)<1e-9&&bg>pick.bg))))pick={r,sc,bg,pl};
   });
   if(!pick)return firstErr;
-  pick.r.cands=core.cands; pick.r.chosen=pool.indexOf(pick.r)>=0?core.cands.indexOf(pick.r):0;
+  pick.r.cands=core.cands; pick.r.chosen=pool.indexOf(pick.r)>=0?core.cands.indexOf(pick.r):0; if(pick.r.mix&&pick.r.mix.groups)pick.r.chosen=-1;
   return pick.r;
   function build(best){
   const env1={id:first.id,col:col(first),pos:[0,0,0],size:best.v,grid:best.perm.map(i=>best.fact[i]),q:first.Q};
   const fbig=l=>Math.max(0,...l.map(o=>o.vol));
   const allOff=best.opts.flatMap(o=>o.list).filter(o=>!o.empty);
   best.opts.forEach(op=>{
-    if(!second){op.fl=op.list;op.floss=op.loss;op.envs=[env1];op.host=-1;return}
+    if(!second){
+      if(Y&&Y.rem>0){const f=yHoles(op.list,Y.rem,I,Y.pc,0); op.fl=f.fl; op.floss=f.fl.reduce((t,o)=>t+o.dev*o.kg,0); op.envs=[env1,...f.envs]; op.placed=first.Q+f.placed}
+      else{op.fl=op.list;op.floss=op.loss;op.envs=[env1];op.placed=first.Q}
+      op.envs.forEach((e,k)=>{e.id=k;e.col=GCOL[k%GCOL.length]}); op.host=-1;return}
     let bf=null;
     op.list.forEach((h,hi)=>{
       if(h.empty)return;
@@ -1375,10 +1425,12 @@ function runDems(I,dems,poolN,forceSeq){
       return {error:`${dn(second.id)} (${second.Q} pcs) does not fit in the Offalls left over from ${dn(first.id)}, which is cut first. The largest Offall holds at most <b>${mx} pieces</b> of ${dn(second.id)}. Reduce the quantity or the dimensions.`};
     }
   }
+  if(Y&&!second){const mp=Math.max(...best.opts.map(o=>o.placed)); best.opts=best.opts.filter(o=>o.placed===mp)}
   best.opts.sort((a,b)=>a.floss-b.floss||fbig(b.fl)-fbig(a.fl));
   best.I=I; best.dems=dems; best.first=first; best.second=second;
   best.volN=I.N[0]*I.N[1]*I.N[2]/1e9;
   best.volPieces=dems.reduce((t,d)=>t+d.P[0]*d.P[1]*d.P[2]*d.Q,0)/1e9;
+  if(Y&&!second){const pl=best.opts[0].placed; best.volPieces=I.P[0]*I.P[1]*I.P[2]*pl/1e9; best.I=Object.assign({},I,{Q:pl}); if(best.opts[0].envs.length>1)best.mix={q1:best.first.Q,q2:pl-best.first.Q,groups:best.opts[0].envs.length,single:best.opts[0].floss};best.chosen=-1}
   return best;
   }
 }
@@ -1466,7 +1518,7 @@ function oriRows(r){
     if(seen.has(key))seen.get(key).lab+=' &nbsp;=&nbsp; '+lab; else seen.set(key,{lab,c,best:c===r.cands[r.chosen]});
   });
   const rows=[...seen.values()].sort((a,b)=>(a.none?1:0)-(b.none?1:0)||(a.none?0:a.c.loss0-b.c.loss0));
-  const mixRow=r.mix?`<tr style="background:var(--brand-soft)"><td class="num">Mixed: ${dn(0)} (${r.mix.q1} pcs) + ${dn(1)} (${r.mix.q2} pcs)</td><td class="r num">${r.opts[0].envs.map(e=>e.size.map(z=>Lc(z,0)).join(' × ')).join('<br>')}</td><td class="num">${r.opts[0].envs.map(e=>e.grid.join(' × ')).join(' + ')}</td><td class="r num">${Wu(r.opts[0].floss,2)}</td><td><span class="pill p-good">Chosen</span></td></tr>`:'';
+  const mixRow=r.mix?`<tr style="background:var(--brand-soft)"><td class="num">Mixed: ${r.opts[0].envs.map((e,k)=>dn(k)+' ('+(e.q||'')+' pcs)').join(' + ')}</td><td class="r num">${r.opts[0].envs.map(e=>e.size.map(z=>Lc(z,0)).join(' × ')).join('<br>')}</td><td class="num">${r.opts[0].envs.map(e=>e.grid.join(' × ')).join(' + ')}</td><td class="r num">${Wu(r.opts[0].floss,2)}</td><td><span class="pill p-good">Chosen</span></td></tr>`:'';
   return mixRow+rows.map(x=>x.none?`<tr><td class="num">${x.lab}</td><td class="r num">—</td><td>—</td><td class="r">—</td><td class="note">does not fit in the block</td></tr>`
     :`<tr${x.best?' style="background:var(--brand-soft)"':''}><td class="num">${x.lab}</td><td class="r num">${x.c.v.map(z=>Lc(z,0)).join(' × ')}</td><td class="num">${x.c.perm.map(i=>x.c.fact[i]).join(' × ')}</td><td class="r num">${Wu(x.c.loss0,2)}</td><td>${x.best?'<span class="pill p-good">Chosen</span>':'<span class="note">fits</span>'}</td></tr>`).join('');
 }
@@ -1476,7 +1528,7 @@ const pct=d=>nf(d*100,0)+'%';
 function render(){
   $('d2body').classList.toggle('muted',!(COMBINED_ON&&$('d2on').checked));$('d2body').closest('section').hidden=!(COMBINED_ON&&$('d2on').checked);
   const main=$('main'); const kgOf=pieceWeight(); const r=solve(); state.res=r;
-  if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('BL',null);return}
+  if(r.error){main.innerHTML=`<div class="err" role="alert">${r.error}</div>`;dgUpdate('BL',null);stratCmp();return}
   if(state.sel>=r.opts.length)state.sel=0;
   const opt=r.opts[state.sel], I=r.I, fl=opt.fl, dual=!!r.second, cdual=dual&&!r.mix;
   const A=r.agg, QT=A.Q, multi=A.N>1, grpO=true;
@@ -1490,7 +1542,7 @@ function render(){
   const perm=r.perm.map(i=>AX[i]).join(' ');
   const totKg=T.kg, lossKg=T.loss;
   const mat=priceMat('BL');
-  const cd=r.mix?[{id:0,Q:I.Q,kg:kgOf[0],w:kgOf[0]*I.Q}]:r.dems.map(d=>{const Q=multi?QT:d.Q;return {id:d.id,Q,kg:kgOf[d.id],w:kgOf[d.id]*Q}}).sort((a,b)=>a.id-b.id);
+  const cd=r.mix?[{id:0,Q:multi?QT:I.Q,kg:kgOf[0],w:kgOf[0]*(multi?QT:I.Q)}]:r.dems.map(d=>{const Q=multi?QT:d.Q;return {id:d.id,Q,kg:kgOf[d.id],w:kgOf[d.id]*Q}}).sort((a,b)=>a.id-b.id);
   const wSum=cd.reduce((s,d)=>s+d.w,0);
   cd.forEach(d=>{d.loss=lossKg*d.w/wSum;d.cost=(d.w+d.loss)*mat.kg/d.Q});
   (window.__LISTB=window.__LISTB||{}).BL=cd[0].cost; const mpB=manPc('BL'); if(mpB!=null)cd.forEach(d=>d.cost=mpB);
@@ -1520,7 +1572,7 @@ function render(){
       <thead><tr><th>Block axes ← piece axes</th><th class="r">V'' W × H × L (${LUl()})</th><th>Arrangement</th><th class="r">Weighted loss</th><th>Result</th></tr></thead>
       <tbody>${oriRows(r)}</tbody>
     </table></div>
-    <div class="body"><p class="note" style="margin:0">The piece is tried in every orientation (W', H', L' on W, H, L: 6 combinations, repeated ones collapse when the piece is symmetric). Each orientation uses its best arrangement of the ${r.first.Q} pcs and its best cutting order; the lowest weighted loss wins.${r.orderTried?` Combined order: both cutting orders were simulated (${dn(r.firstOrd[0].id)} first: ${r.orderTried[0]==null?'does not fit':Wu(r.orderTried[0],2)}; ${dn(r.firstOrd[1].id)} first: ${r.orderTried[1]==null?'does not fit':Wu(r.orderTried[1],2)}) and the lower loss was kept.`:''}${r.mix?` Splitting the ${r.I.Q} pcs in two groups with different orientations gives a weighted loss of ${Wu(r.opts[0].floss,2)} against ${Wu(r.mix.single,2)} for the best single orientation (a gain of at least ${nf(MIX_GAIN*100,0)}% is required, because the second V\'\' adds cuts).`:''}</p></div></div>
+    <div class="body"><p class="note" style="margin:0">The piece is tried in every orientation (W', H', L' on W, H, L: 6 combinations, repeated ones collapse when the piece is symmetric). Each orientation uses its best arrangement of the ${r.first.Q} pcs and its best cutting order; the lowest weighted loss wins.${r.orderTried?` Combined order: both cutting orders were simulated (${dn(r.firstOrd[0].id)} first: ${r.orderTried[0]==null?'does not fit':Wu(r.orderTried[0],2)}; ${dn(r.firstOrd[1].id)} first: ${r.orderTried[1]==null?'does not fit':Wu(r.orderTried[1],2)}) and the lower loss was kept.`:''}${r.mix&&r.mix.groups?` Optimize yield: this block is filled with ${r.I.Q} pcs in ${r.mix.groups} groups (the extra groups use the Offalls, each in its best orientation) before another block is opened.`:r.mix?` Splitting the ${r.I.Q} pcs in two groups with different orientations gives a weighted loss of ${Wu(r.opts[0].floss,2)} against ${Wu(r.mix.single,2)} for the best single orientation (a gain of at least ${nf(MIX_GAIN*100,0)}% is required, because the second V\'\' adds cuts).`:''}</p></div></div>
   </section>
 
   <section class="card ori${CS.c?' collapsed':''}" id="cutseq">
@@ -1613,6 +1665,28 @@ function render(){
   stage.onpointerdown=e=>{drag=[e.clientX,e.clientY];stage.setPointerCapture(e.pointerId)};
   stage.onpointermove=e=>{if(!drag)return;state.view.yaw+=(e.clientX-drag[0])*0.008;state.view.pitch=Math.max(-1.4,Math.min(1.4,state.view.pitch+(e.clientY-drag[1])*0.008));drag=[e.clientX,e.clientY];paint(true)};
   stage.onpointerup=stage.onpointercancel=()=>{drag=null};
+  stratCmp();
+}
+/* Compares both block strategies on the final material cost per piece (same inputs, Material cost price, recommended cutting option). */
+function stratCmp(){
+  const el=$('bStratCmp'); if(!el)return;
+  const NM={offall:'Optimize offall',yield:'Optimize yield'};
+  const rd=readIn, saveMix=MIXON, saveSel=state.sel, out={};
+  try{
+    if(COMBINED_ON&&$('d2on')&&$('d2on').checked){el.textContent='Strategies are compared for a single demanded part only.';return}
+    if(mfOn('BL')){el.textContent='Combined Feedstock is active: the strategy applies to each lot.';return}
+    const mat=priceMat('BL'), priced=isFinite(mat.kg)&&mat.kg>0; state.sel=0;
+    for(const S of ['offall','yield']){
+      readIn=()=>Object.assign(rd(),{S}); let res; try{res=solve()}finally{readIn=rd}
+      const sm=res&&!res.error?dgCalc('BL',res):null; out[S]=sm?{blocks:sm.N,v:priced?sm.calcKg*mat.kg/sm.n:sm.calcKg/sm.n}:null;
+    }
+  }catch(e){el.textContent='';return}
+  finally{readIn=rd;MIXON=saveMix;state.sel=saveSel}
+  const a=out.offall, b=out.yield; if(!a||!b){el.textContent='';return}
+  const priced=isFinite(priceMat('BL').kg)&&priceMat('BL').kg>0, fmt=v=>priced?'$ '+nf(v,2)+' /pc':Wu(v,2)+' /pc';
+  const same=Math.abs(a.v-b.v)<=Math.max(a.v,b.v)*5e-4, best=same?null:(b.v<a.v?'yield':'offall'), gain=same?0:Math.abs(a.v-b.v)/Math.max(a.v,b.v)*100;
+  const row=(S,x)=>`<div style="display:flex;justify-content:space-between;gap:8px${best===S?';font-weight:600;color:var(--brand)':''}"><span>${best===S?'✓ ':''}${NM[S]} · ${x.blocks} block${x.blocks>1?'s':''}</span><span class="num">${fmt(x.v)}</span></div>`;
+  el.innerHTML=`<div style="margin-bottom:4px">${priced?'Material cost per piece':'Calculation weight per piece'} by strategy</div>${row('offall',a)}${row('yield',b)}<div style="margin-top:4px">${same?'Both strategies give the same result.':`Best: <b>${NM[best]}</b> (${nf(gain,1)}% lower).`}</div>`;
 }
 function paint(mainOnly){
   const r=state.res; if(!r||r.error)return;
@@ -1624,6 +1698,7 @@ function paint(mainOnly){
   document.querySelectorAll('#opts .opt canvas').forEach((c,i)=>draw(c,sceneOf(r,r.opts[i],-1),{yaw:-0.62,pitch:0.42},{zoom:1.3}));
 }
 document.querySelectorAll('#tab-blocks .side input').forEach(i=>i.addEventListener('input',()=>{state.sel=0;render()}));
+{const bs=$('bStrat'); if(bs)bs.addEventListener('change',()=>{state.sel=0;FSEL.b=0;render()})}
 window.addEventListener('resize',()=>{paint();rPaint()});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{paint();rPaint()});
 new MutationObserver(()=>{paint();rPaint()}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -2922,6 +2997,7 @@ function snapPut(S0_){
   const S=snapClean(jclone(S0_));
   Object.entries(S.v).forEach(([id,val])=>{const el=$(id);if(!el)return;
     if(el.type==='checkbox')el.checked=!!val; else if(UK[id])el.dataset.base=(val&&val.b!=null)?val.b:''; else el.value=val});
+  if(S.v.bStrat===undefined&&$('bStrat'))$('bStrat').value='offall';
   setUnits(UNIT.us,true);
   state.mat=S.state.mat;state.sel=S.state.sel;state.hi=-1;state.view=S.state.view;
   rstate.mat=S.rstate.mat;rstate.view=S.rstate.view;qstate.mat=S.qstate.mat;qstate.price=S.qstate.price;qstate.view=S.qstate.view;
