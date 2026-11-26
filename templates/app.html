@@ -555,8 +555,36 @@ input,select,textarea{color:var(--fg)}
 #modebar .mb-r>[data-act=save]{order:3;margin-left:auto;padding:9px 30px;position:relative}
 #modebar .mb-r>[data-act=save]::before{content:'';position:absolute;left:-26px;top:-6px;bottom:-6px;border-left:1px solid var(--line-strong)}
 body.prod #modebar .mb-r>[data-act=save]::before{border-left-color:#6997AD}
+
+.densbtn{padding:2px 9px;font-size:12px}.densTag{margin-top:4px}
+#densDlg{border:1px solid var(--line-strong);border-radius:var(--radius);padding:0;width:min(1000px,94vw);max-height:86vh;background:var(--surface);color:var(--fg);box-shadow:0 18px 50px rgba(30,72,96,.28)}
+#densDlg::backdrop{background:rgba(30,72,96,.35)}
+#densDlg[open]{display:flex;flex-direction:column}
+.dd-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);margin:0}
+.dd-head h2{margin:0;font:600 16px var(--font-ui)}.dd-x{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--fg)}
+.dd-tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px 18px}
+.dd-tools input{flex:1 1 240px;max-width:340px}
+.dd-cats{display:flex;gap:6px;flex-wrap:wrap}
+.dd-cats button{font:500 12px var(--font-ui);padding:4px 11px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--fg);cursor:pointer}
+.dd-cats button[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.dd-scroll{overflow:auto;padding:0 18px 4px;min-height:120px}
+.dd-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.dd-tbl th{position:sticky;top:0;background:var(--surface);text-align:left;font:600 12px var(--font-ui);padding:8px 10px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+.dd-tbl td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.dd-tbl .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dd-tbl tbody tr{cursor:pointer}.dd-tbl tbody tr:hover,.dd-tbl tbody tr:focus-visible{background:var(--brand-soft);outline:none}
+.dd-tbl tbody tr.cur td{background:var(--brand-soft);font-weight:600}.dd-tbl tbody tr.na{cursor:default;color:var(--fg-muted)}.dd-tbl tbody tr.na:hover{background:none}
+.dd-tbl td{white-space:normal}.dd-tbl td.g{font-weight:600;white-space:nowrap}.dd-tbl td.eq{color:var(--fg-muted);min-width:240px;width:46%;overflow-wrap:anywhere}
+.dd-use{font:500 12px var(--font-ui);padding:3px 10px;border:1px solid var(--brand);border-radius:var(--radius);background:var(--surface);color:var(--brand);cursor:pointer}
+.dd-foot{margin:0;padding:10px 18px 14px;font-size:12px;color:var(--fg-muted)}
 </style>
 
+<dialog id="densDlg" aria-labelledby="densTtl">
+  <form method="dialog" class="dd-head"><h2 id="densTtl">Density table</h2><button class="dd-x" value="x" aria-label="Close">×</button></form>
+  <div class="dd-tools"><input id="densQ" type="search" placeholder="Search grade, equivalent or category" aria-label="Search grades"><div id="densCats" class="dd-cats" role="group" aria-label="Category"></div></div>
+  <div class="dd-scroll"><table class="dd-tbl"><thead><tr><th>Category</th><th>Our grade</th><th>Equivalents</th><th class="num">Density (g/cm³)</th><th class="num">Density (lb/in³)</th><th></th></tr></thead><tbody id="densRows"></tbody></table></div>
+  <p class="dd-foot" id="densFoot">Choose a grade to fill D · density.</p>
+</dialog>
 <script type="application/json" id="ei6-data">{{DATA_JSON}}</script>
 <script type="application/json" id="ei6-user">{{USER_JSON}}</script>
 <div class="app">
@@ -618,7 +646,7 @@ body.prod #modebar .mb-r>[data-act=save]::before{border-left-color:#6997AD}
           <div class="field"><label for="nW">W · width</label><div class="inp"><input id="nW" type="number" min="1" step="any" value="635"><span>mm</span></div></div>
           <div class="field"><label for="nH">H · height</label><div class="inp"><input id="nH" type="number" min="1" step="any" value="508"><span>mm</span></div></div>
           <div class="field"><label for="nL">L · length</label><div class="inp"><input id="nL" type="number" min="1" step="any" value="1829"><span>mm</span></div></div>
-          <div class="field wide"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><label for="dens">D · density</label><select id="densRef" aria-label="Reference densities" title="Reference densities: choose one to fill D · density" style="width:auto;max-width:62%;padding:2px 6px;font-size:12px"></select></div><div class="inp"><input id="dens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div></div>
+          <div class="field wide"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><label for="dens">D · density</label><button type="button" class="updbtn densbtn" data-dens="dens" aria-haspopup="dialog" title="Open the density table (grades and equivalents)">Grades…</button></div><div class="inp"><input id="dens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div><div class="note densTag" data-for="dens" hidden></div></div>
           <div class="field wide"><label for="bStrat">Block strategy</label><select id="bStrat" title="Optimize offall: blocks are filled with the best single arrangement and the cuts with the lowest depreciation. Optimize yield: each block is filled with as many pieces as it holds (more groups in the Offalls) before another block is used."><option value="offall">Optimize offall</option><option value="yield">Optimize yield</option></select></div>
           <div class="field wide"><div class="note" id="bStratCmp" aria-live="polite"></div></div>
           <div class="subhead">Block weight</div>
@@ -667,7 +695,7 @@ body.prod #modebar .mb-r>[data-act=save]::before{border-left-color:#6997AD}
             <div class="field"><label for="rD2">Large OD</label><div class="inp"><input id="rD2" type="number" min="1" step="any" value="254"><span>mm</span></div></div>
             <div class="field"><label for="rL2">L large OD</label><div class="inp"><input id="rL2" type="number" min="1" step="any" value="1229"><span>mm</span></div></div>
           </div>
-          <div class="field wide"><label for="rDens">D · density</label><div class="inp"><input id="rDens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div></div>
+          <div class="field wide"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><label for="rDens">D · density</label><button type="button" class="updbtn densbtn" data-dens="rDens" aria-haspopup="dialog" title="Open the density table (grades and equivalents)">Grades…</button></div><div class="inp"><input id="rDens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div><div class="note densTag" data-for="rDens" hidden></div></div>
           <div class="subhead">Rod weight</div>
           <dl class="dl num pw" id="rnomw"></dl>
           <div class="subhead">Feedstock needed</div>
@@ -715,7 +743,7 @@ body.prod #modebar .mb-r>[data-act=save]::before{border-left-color:#6997AD}
             <div class="field"><label for="qD2">Large OD</label><div class="inp"><input id="qD2" type="number" min="1" step="any" value="600"><span>mm</span></div></div>
             <div class="field"><label for="qL2">L large OD</label><div class="inp"><input id="qL2" type="number" min="1" step="any" value="140"><span>mm</span></div></div>
           </div>
-          <div class="field wide"><label for="qDens">D · density</label><div class="inp"><input id="qDens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div></div>
+          <div class="field wide"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><label for="qDens">D · density</label><button type="button" class="updbtn densbtn" data-dens="qDens" aria-haspopup="dialog" title="Open the density table (grades and equivalents)">Grades…</button></div><div class="inp"><input id="qDens" type="number" min="1" step="any" value="1720"><span>kg/m³</span></div><div class="note densTag" data-for="qDens" hidden></div></div>
           <div class="subhead">Round weight</div>
           <dl class="dl num pw" id="qnomw"></dl>
         </div></div>
@@ -1698,13 +1726,32 @@ function paint(mainOnly){
   document.querySelectorAll('#opts .opt canvas').forEach((c,i)=>draw(c,sceneOf(r,r.opts[i],-1),{yaw:-0.62,pitch:0.42},{zoom:1.3}));
 }
 document.querySelectorAll('#tab-blocks .side input').forEach(i=>i.addEventListener('input',()=>{state.sel=0;render()}));
-/* Density reference list (g/cm³); add rows here */
-const DENS_REF=[['PFR',1.72],['ISO',1.80],['Electrode',1.70]];
-{const ds=$('densRef'); if(ds){
-  const fill=()=>{ds.innerHTML='<option value="">Reference…</option>'+DENS_REF.map(([n,g])=>`<option value="${g*1000}">${n} · ${g.toFixed(2)} g/cm³ · ${(g*1000/DENS_F).toFixed(4)} lb/in³</option>`).join('')};
-  fill();
-  ds.addEventListener('change',()=>{const kg=parseFloat(ds.value); if(!(kg>0))return; const el=$('dens');
-    el.value=UNIT.us?String(+(kg/DENS_F).toFixed(5)):String(kg); el.dispatchEvent(new Event('input',{bubbles:true})); ds.value='';});
+/* ---- Density table (pop-up): choose a grade to fill D · density in Blocks, Rods or Rounds ---- */
+const DENS_TBL=[["Isostatic","ATJ","Amsted/WV ATJ",1.76],["Isostatic","PFI-15","Nippon IGS-603, Tokai G320, Toyo Tanso IG-11, Ibiden ET-10, Mersen 2191, SGL R-7340, Chengdu CDI-6L, China PCC, Tokai G-250",1.78],["Isostatic","PFI-20","Sinosteel T-952",1.78],["Isostatic","PFI-25","Nippon IGS-743, Tokai G330, Toyo Tanso IG-11, Ibiden ET-15, Mersen 2020, SGL R-7500, Chengdu CDI-6L",1.81],["Isostatic","PFI-26","Boafeng WX-5",1.85],["Isostatic","PFI-27","Sinosteel T-955",1.82],["Isostatic","PFI-28","Boafeng WX-7",1.85],["Isostatic","PFI-35","Nippon IGS-844, Nippon IGS-744, Tokai G347, Toyo Tanso IG-43, Mersen 2114, SGL R-4550, Chengdu CDI-5L",1.85],["Isostatic","PFI-45","Mersen DS-4, Aero 50",1.86],["Isostatic","XTJ-10","Ibiden ET-10",1.76],["Isostatic","XTJ-15","Ibiden ET-15",1.77],["Isostatic","XTJ-30","Ibiden ET-30",1.8],["Isostatic","XTJ-34","Ibiden ET-34",1.86],["Isostatic","XTC-10","Ibiden ET-10 w/ resin",1.83],["Isostatic","XTC-15","Ibiden ET-15 w/ resin",1.82],["Isostatic","XTC-30","Ibiden ET-30 w/ resin",1.85],["EDM","AE-15","Mersen Ellor+15",1.8],["EDM","AE-20","Mersen Ellor+20",1.8],["EDM","AE-25","Mersen Ellor+25",1.82],["EDM","AE-30","Mersen Ellor+30",1.78],["EDM","AE-45","Mersen Ellor+50",1.86],["EDM","AE-50","Mersen DS-4",1.84],["EDM","AE-60","",1.88],["EDM","PFE-3","Nippon SED-40",1.8],["EDM","PFE-6","Nippon SED-65",1.85],["EDM","PFE-9","Nippon SED-90",1.93],["Extruded/Molded","PF","SGL HLM-50, Tokai FE-200, Nippon GR-102, GIL GLM50, UCAR/Amsted AGS-R, China GSN",1.65],["Extruded/Molded","ELECTRODE","",1.65],["Extruded/Molded","PFR","SGL HLM, Tokai FE-250, Nippon GR-103, GIL GLM, UCAR/Amsted CS, UCAR/Amsted CBY, China GSK, Tokai Cobex G-1, HEG LHS80 LA",1.72],["Extruded/Molded","PFR-N","SGL HLM, Tokai FE-250, Nippon GR-103, GIL GLM, SGL HLM 80, UCAR/Amsted CS, UCAR/Amsted CS-X, UCAR/Amsted CBY, China GSK / GSK-N, Tokai Cobex G-1, HEG LHS80 LA",1.77],["Extruded/Molded","PIR","HEG LHS80 LA / LHS80B2 LA",1.72],["Extruded/Molded","PJR","SEC PSG-12",1.74],["Extruded/Molded","PTC","Tokai Cobex G-1",1.72],["Extruded/Molded","PTC-N","Tokai Cobex G-2",1.76],["Extruded/Molded","PTC-HT","Tokai Cobex G-4X",1.7],["Extruded/Molded","PDF","SGL HLM-50, Tokai FE-200, Nippon GR-102, GIL GLM50, UCAR/Amsted PGW",1.67],["Extruded/Molded","PDF-N","SGL HLM, Tokai FE-250, Nippon GR-103, GIL GLM, UCAR/Amsted PGX, UCAR/Amsted PGW, China GSK",1.76],["Extruded/Molded","PE","China TSK",1.68],["Extruded/Molded","PID-N","HEG (India) LHS80 LA / LHS80B2 LA",1.76],["Extruded/Molded","PRD","SGL HLM-50, Tokai FE-200, Nippon GR-102, GIL GLM50, UCAR/Amsted AGS-R, China TSK",1.65],["Extruded/Molded","PRD-N","SGL HLM, Tokai FE-250, Nippon GR-103, GIL GLM, UCAR/Amsted CS, UCAR/Amsted CBY, China GSK, Tokai Cobex G-1, HEG LHS80 LA",1.72],["Extruded/Molded","CBY","Amsted CBY",1.66],["Extruded/Molded","CS","Amsted CS",1.74],["Extruded/Molded","PGX","Amsted PGX",1.73],["Extruded/Molded","PGW","Amsted PGW",1.63],["Extruded/Molded","GB-73","China BSK",1.73],["Extruded/Molded","PMR-20","",null]];
+{const dlg=$('densDlg'); if(dlg){
+  let tgt='dens', cat='', q='';
+  const esc=x=>String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const cats=[...new Set(DENS_TBL.map(r=>r[0]))];
+  const kgOf=g=>g*1000;
+  const cur=()=>{const el=$(tgt); const v=el?parseFloat(el.dataset.base!==undefined&&el.dataset.base!==''?el.dataset.base:el.value):NaN; return v};
+  const list=()=>DENS_TBL.filter(r=>(!cat||r[0]===cat)&&(!q||(r[0]+' '+r[1]+' '+r[2]).toLowerCase().includes(q)));
+  function draw(){
+    $('densCats').innerHTML=['All',...cats].map(c=>`<button type="button" data-c="${c==='All'?'':esc(c)}" aria-pressed="${(c==='All'?'':c)===cat}">${esc(c)}</button>`).join('');
+    const L=list(), cv=cur(), tg=document.querySelector('.densTag[data-for="'+tgt+'"]'), tgg=tg&&!tg.hidden?tg.textContent.replace(/^Grade /,'').split(' · ')[0]:'', hit=r=>r[3]&&(tgg?r[1]===tgg:Math.abs(kgOf(r[3])-cv)<0.6);
+    $('densRows').innerHTML=L.length?L.map(r=>{const i=DENS_TBL.indexOf(r);
+      return `<tr tabindex="0" data-i="${i}" class="${r[3]?(hit(r)?'cur':''):'na'}"><td>${esc(r[0])}</td><td class="g">${esc(r[1])}</td><td class="eq">${esc(r[2])||'–'}</td><td class="num">${r[3]?r[3].toFixed(2):'–'}</td><td class="num">${r[3]?(kgOf(r[3])/DENS_F).toFixed(4):'–'}</td><td>${r[3]?'<button type="button" class="dd-use" tabindex="-1">Use</button>':'<span title="No density registered">n/a</span>'}</td></tr>`}).join(''):'<tr><td colspan="6">No grade matches the search.</td></tr>';
+    $('densFoot').textContent=L.length+' of '+DENS_TBL.length+' grades · choose a row to fill D · density ('+(UNIT.us?'lb/in³':'kg/m³')+').';
+  }
+  function pick(i){const r=DENS_TBL[i]; if(!r||!r[3])return; if(typeof dgSetDens==='function')dgSetDens(tgt,kgOf(r[3])); densTag(tgt,r); dlg.close()}
+  function densTag(id,r){const t=document.querySelector('.densTag[data-for="'+id+'"]'); if(!t)return;
+    if(r){t.hidden=false;t.dataset.v=$(id).value;t.textContent='Grade '+r[1]+' · '+r[3].toFixed(2)+' g/cm³'}else{t.hidden=true;t.textContent=''}}
+  ['dens','rDens','qDens'].forEach(id=>{const el=$(id); if(el)el.addEventListener('input',()=>{const t=document.querySelector('.densTag[data-for="'+id+'"]'); if(t&&!t.hidden&&t.dataset.v!==el.value)densTag(id,null)})});
+  document.querySelectorAll('.densbtn').forEach(b=>b.addEventListener('click',()=>{tgt=b.dataset.dens; q=''; cat=''; $('densQ').value=''; draw(); dlg.showModal(); $('densQ').focus()}));
+  $('densQ').addEventListener('input',e=>{q=e.target.value.trim().toLowerCase(); draw()});
+  $('densCats').addEventListener('click',e=>{const b=e.target.closest('button'); if(!b)return; cat=b.dataset.c; draw()});
+  $('densRows').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]'); if(tr)pick(+tr.dataset.i)});
+  $('densRows').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-i]'); if(tr){e.preventDefault();pick(+tr.dataset.i)}}});
+  dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});
 }}
 {const bs=$('bStrat'); if(bs)bs.addEventListener('change',()=>{state.sel=0;FSEL.b=0;render()})}
 window.addEventListener('resize',()=>{paint();rPaint()});
