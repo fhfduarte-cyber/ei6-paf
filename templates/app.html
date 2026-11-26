@@ -556,27 +556,49 @@ input,select,textarea{color:var(--fg)}
 #modebar .mb-r>[data-act=save]::before{content:'';position:absolute;left:-26px;top:-6px;bottom:-6px;border-left:1px solid var(--line-strong)}
 body.prod #modebar .mb-r>[data-act=save]::before{border-left-color:#6997AD}
 
-.densbtn{padding:2px 9px;font-size:12px}.densTag{margin-top:4px}
-#densDlg{border:1px solid var(--line-strong);border-radius:var(--radius);padding:0;width:min(1000px,94vw);max-height:86vh;background:var(--surface);color:var(--fg);box-shadow:0 18px 50px rgba(30,72,96,.28)}
-#densDlg::backdrop{background:rgba(30,72,96,.35)}
+.densbtn{padding:2px 10px;font-size:12px}.densTag{margin-top:4px}
+#densDlg{border:1px solid var(--line-strong);border-radius:var(--radius);padding:0;width:min(1000px,94vw);max-height:86vh;background:var(--surface);color:var(--fg);box-shadow:0 12px 40px rgba(30,72,96,.35);overflow:hidden}
+#densDlg::backdrop{background:rgba(30,72,96,.45)}
 #densDlg[open]{display:flex;flex-direction:column}
-.dd-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);margin:0}
-.dd-head h2{margin:0;font:600 16px var(--font-ui)}.dd-x{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--fg)}
-.dd-tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px 18px}
-.dd-tools input{flex:1 1 240px;max-width:340px}
-.dd-cats{display:flex;gap:6px;flex-wrap:wrap}
-.dd-cats button{font:500 12px var(--font-ui);padding:4px 11px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--fg);cursor:pointer}
-.dd-cats button[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
-.dd-scroll{overflow:auto;padding:0 18px 4px;min-height:120px}
+.dd-head{display:flex;justify-content:space-between;align-items:center;background:var(--brand);color:var(--brand-ink);padding:12px 16px;margin:0}
+.dd-head h2{margin:0;font:600 15px var(--font-head)}
+.dd-x{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:var(--brand-ink)}
+.dd-x:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dd-tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.dd-tools input{flex:1 1 240px;max-width:340px;font:400 14px var(--font-ui);padding:8px 10px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface-2);color:var(--fg)}
+.dd-tools input:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.dd-cats{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.dd-cats button{font:500 12px var(--font-ui);color:var(--fg-muted);padding:5px 12px;border:0;background:none;cursor:pointer}
+.dd-cats button[aria-pressed=true]{background:var(--brand);color:var(--brand-ink)}
+.dd-cats button:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.dd-scroll{overflow:auto;min-height:120px}
 .dd-tbl{width:100%;border-collapse:collapse;font-size:13px}
-.dd-tbl th{position:sticky;top:0;background:var(--surface);text-align:left;font:600 12px var(--font-ui);padding:8px 10px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
-.dd-tbl td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-.dd-tbl .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dd-tbl th{position:sticky;top:0;z-index:1;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-muted);font-weight:500;background:var(--surface-2);padding:9px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line)}
+.dd-tbl td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;white-space:normal}
+.dd-tbl th.num,.dd-tbl td.num{text-align:right;white-space:nowrap}
 .dd-tbl tbody tr{cursor:pointer}.dd-tbl tbody tr:hover,.dd-tbl tbody tr:focus-visible{background:var(--brand-soft);outline:none}
+.dd-tbl tbody tr:focus-visible{box-shadow:inset 0 0 0 2px var(--brand)}
 .dd-tbl tbody tr.cur td{background:var(--brand-soft);font-weight:600}.dd-tbl tbody tr.na{cursor:default;color:var(--fg-muted)}.dd-tbl tbody tr.na:hover{background:none}
-.dd-tbl td{white-space:normal}.dd-tbl td.g{font-weight:600;white-space:nowrap}.dd-tbl td.eq{color:var(--fg-muted);min-width:240px;width:46%;overflow-wrap:anywhere}
-.dd-use{font:500 12px var(--font-ui);padding:3px 10px;border:1px solid var(--brand);border-radius:var(--radius);background:var(--surface);color:var(--brand);cursor:pointer}
-.dd-foot{margin:0;padding:10px 18px 14px;font-size:12px;color:var(--fg-muted)}
+.dd-tbl td.g{font-weight:600;white-space:nowrap;font-family:var(--font-head)}.dd-tbl td.eq{color:var(--fg-muted);min-width:240px;width:46%;overflow-wrap:anywhere}
+.dd-use{font:500 12px var(--font-ui);padding:5px 12px;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface);color:var(--fg);cursor:pointer}
+.dd-use:hover{border-color:var(--brand);color:var(--brand)}
+.dd-foot{margin:0;padding:10px 16px;font-size:12px;color:var(--fg-muted);border-top:1px solid var(--line)}
+.chk-wrap{position:relative;display:flex;flex-direction:column;align-items:center}
+.chkbtn{font-weight:600}
+.fc-below .chk-wrap{margin-top:-22px}
+.chk-pop{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:8px;width:min(450px,88vw);max-height:62vh;overflow:auto;z-index:40;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);box-shadow:0 12px 40px rgba(30,72,96,.35);text-align:left;font:13px var(--font-ui);color:var(--fg);white-space:normal}
+.chk-t{display:flex;justify-content:space-between;align-items:center;background:var(--brand);color:var(--brand-ink);padding:10px 14px}.chk-t b{font:600 14px var(--font-head)}
+.chk-x{border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--brand-ink)}
+.chk-pop>*:not(.chk-t){margin-left:14px;margin-right:14px}.chk-pop>*:last-child{margin-bottom:12px}
+.chk-n{margin-top:8px;margin-bottom:8px;font-size:12px;color:var(--fg-muted)}
+.chk-f{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}
+.chk-f span{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-muted)}
+.chk-miss{color:#8a5a00;font-weight:600}
+.chk-i{display:flex;gap:8px;align-items:flex-start;padding:4px 0;cursor:pointer}.chk-i.sub{margin-left:24px}
+.chk-i input{margin-top:2px;accent-color:var(--brand)}
+.chk-po{display:flex;gap:16px;align-items:center;flex-wrap:wrap;border:1.5px solid var(--secondary);border-radius:6px;padding:5px 10px;margin-top:8px;margin-bottom:8px}
+.chk-h{font:600 13px var(--font-head);margin-top:10px;margin-bottom:2px}
+.chk-part{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}.chk-part b{display:block;margin-bottom:2px;font-family:var(--font-head)}
 </style>
 
 <dialog id="densDlg" aria-labelledby="densTtl">
@@ -3115,7 +3137,7 @@ function pafCover(){
       if(pc==='date'||pc==='rfq'){const v=parseUS(t.value);if(v)PAF[pc]=v;else if(pc==='rfq'&&t.value.trim()==='')PAF.rfq='';return}
       if(pc){PAF[pc]=t.value;return}
       if(pf){const tr=t.closest('tr'),i=+tr.dataset.i;PAF.parts[i][pf]=t.value;const b=tr.querySelector('.add');if(b)b.hidden=!(i===PAF.parts.length-1&&pafOk(PAF.parts[i]));pafNav()}});
-    cv.addEventListener('change',e=>{const t=e.target,pc=t.dataset&&t.dataset.pc;if(pc==='date'||pc==='rfq'){if(t.value.trim()===''&&pc==='rfq'){PAF.rfq=''}else if(!parseUS(t.value)){t.value=dUS(PAF[pc]);pafMsg('Enter dates as mm/dd/yy.')}else t.value=dUS(PAF[pc])}});
+    cv.addEventListener('change',e=>{const t=e.target,pc=t.dataset&&t.dataset.pc;if(pc==='date'||pc==='rfq'){if(t.value.trim()===''&&pc==='rfq'){PAF.rfq=''}else if(!parseUS(t.value)){t.value=dUS(PAF[pc]);pafMsg('Enter dates as mm/dd/yy.')}else t.value=dUS(PAF[pc]);if(pc==='rfq')flowRender()}});
     cv.addEventListener('click',e=>{const b=e.target.closest('.paftab button');if(!b)return;const i=+b.closest('tr').dataset.i;
       if(b.classList.contains('add')){PAF.parts.push({desc:'',grade:'',quoted:'',no:'',snap:jclone(S0)})}
       else if(b.classList.contains('del')){
@@ -3303,7 +3325,7 @@ const pstrip=p=>({desc:p.desc||'',grade:p.grade||'',quoted:p.quoted||'',no:p.no|
 const pafIdOf=no=>String(no).trim().replace(/[^A-Za-z0-9_\-.~:@+]+/g,'-').replace(/^\.+$/,'x').slice(0,120);
 const errTxt=e=>{const c=e&&e.code,m={quota_exceeded:'The shared storage is full.',invalid_argument:'The shared storage refused the data (too large, or you have no write access).',resource_exhausted:'Too many requests. Wait a moment and try again.',revoked:'Your access to this tool was withdrawn.',not_granted:'Shared storage is not enabled for this tool.'};return (c&&m[c])||(e&&e.message)||String(e)};
 Object.defineProperty(window,'__PRODMODE',{get:()=>PAF.mode==='prod',configurable:true});
-Object.assign(PAF,{rfq:'',gen:null,ev:{},id:'',status:'draft',rev:0,lock:null,frozen:null,mode:'quote',qparts:null,prod:null,po:'',dirty:false,qWrite:true,saving:false,at:''});
+Object.assign(PAF,{rfq:'',cby:'',gen:null,ev:{},id:'',status:'draft',rev:0,lock:null,frozen:null,mode:'quote',qparts:null,prod:null,po:'',dirty:false,qWrite:true,saving:false,at:''});
 
 /* ---- results of the part loaded in the calculator (what the quote / the scenario costs) ---- */
 /* Snapshots are stored in the shared DB and reopened later, so every reference to a row of a data list (price list item, Digger lot) is saved by NAME / LOT NUMBER too, and looked up again on restore: a row index is only valid for the exact list it was taken from. */
@@ -3369,7 +3391,7 @@ function flowMsg(t,ok){const e=$('flow-msg');if(e){e.textContent=t||'';e.classLi
 /* ---- storage: documents pafs/<id> (summary), pafs/<id>/data/quote (frozen quote), pafs/<id>/data/prod (production) ---- */
 function metaNow(rev,at){
   const lab=(PAF.lock||PAF.mode==='prod')&&PAF.qparts?PAF.qparts:PAF.parts, src=(PAF.lock&&PAF.frozen)?PAF.frozen:PAF.parts.map(p=>p.res);
-  return J({no:PAF.no,cust:PAF.cust,desc:PAF.desc,date:PAF.date,rfq:PAF.rfq||'',status:PAF.status,rev,at,by:PLAT.uid||'',lock:PAF.lock||null,gen:PAF.gen||null,ev:PAF.ev||{},po:PAF.po||'',opRev:(PAF.prod&&PAF.prod.opRev)||0,n:lab.length,
+  return J({no:PAF.no,cust:PAF.cust,desc:PAF.desc,date:PAF.date,rfq:PAF.rfq||'',status:PAF.status,rev,at,by:PLAT.uid||'',cby:PAF.cby||PLAT.uid||'',lock:PAF.lock||null,gen:PAF.gen||null,ev:PAF.ev||{},po:PAF.po||'',opRev:(PAF.prod&&PAF.prod.opRev)||0,n:lab.length,
     parts:lab.map((p,i)=>{const r=src[i]||{};return {no:p.no||'',desc:p.desc||'',price:r.price,qty:r.qq,margin:r.margin}})});
 }
 async function dbSave(){
@@ -3390,15 +3412,15 @@ async function dbSave(){
   PAF.id=id;PAF.rev=rev;PAF.qWrite=false;PAF.dirty=false;PAF.at=at; return rev;
 }
 function pafReset(){
-  Object.assign(PAF,{rfq:'',gen:null,ev:{},id:'',no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),status:'draft',rev:0,lock:null,frozen:null,mode:'quote',qparts:null,prod:null,po:'',dirty:false,qWrite:true,at:''});
+  Object.assign(PAF,{rfq:'',cby:'',gen:null,ev:{},id:'',no:'',cust:'',desc:'',date:new Date().toLocaleDateString('en-CA'),status:'draft',rev:0,lock:null,frozen:null,mode:'quote',qparts:null,prod:null,po:'',dirty:false,qWrite:true,at:''});
 }
 function pafNew(){
-  pafReset(); PAF.parts=[{desc:'',grade:'',quoted:'',no:'',snap:jclone(S0)}]; PAF.live=0; snapPut(S0); PAF.cur=-1; mbMsg(''); pafView();
+  pafReset(); PAF.cby=PLAT.uid||''; PAF.parts=[{desc:'',grade:'',quoted:'',no:'',snap:jclone(S0)}]; PAF.live=0; snapPut(S0); PAF.cur=-1; mbMsg(''); pafView();
 }
 function pafApply(d){
   const m=d.meta||{}, qd=d.quote||{};
   pafReset(); PAF.no=String(m.no||'');PAF.cust=String(m.cust||'');PAF.desc=String(m.desc||'').slice(0,120);PAF.date=String(m.date||PAF.date);PAF.rfq=String(m.rfq||'').slice(0,10);
-  PAF.status=m.status||'draft';PAF.rev=m.rev||0;PAF.lock=m.lock||null;PAF.gen=m.gen||null;PAF.ev=(m.ev&&typeof m.ev==='object'&&!Array.isArray(m.ev))?m.ev:{};PAF.po=m.po||'';PAF.at=m.at||'';
+  PAF.status=m.status||'draft';PAF.rev=m.rev||0;PAF.lock=m.lock||null;PAF.gen=m.gen||null;PAF.ev=(m.ev&&typeof m.ev==='object'&&!Array.isArray(m.ev))?m.ev:{};PAF.po=m.po||'';PAF.at=m.at||'';PAF.cby=String(m.cby||m.by||'');
   PAF.qparts=(qd.parts||[]).map(p=>({desc:String(p.desc||''),grade:String(p.grade||'').slice(0,60),quoted:String(p.quoted||'').slice(0,60),no:String(p.no||''),snap:p.snap||null,res:p.res||null}));
   PAF.frozen=qd.frozen||null; PAF.prod=d.prod||null; PAF.qWrite=false;
   if(!PAF.qparts.length)PAF.qparts=[{desc:'',grade:'',quoted:'',no:'',snap:null,res:null}];
@@ -3463,6 +3485,7 @@ function lockDialog(){return new Promise(res=>{
 async function lockQuote(){
   if(PAF.busy||PAF.lock)return; flowMsg('');
   if(!PAF.gen){flowMsg('Generate the PAF form first: the manager approves with the Excel in hand.');return}
+  if(!chkOk()){flowMsg('Checklist: set RFQ received in the PAF header (the CSR is the PAF creator).');return}
   if(!PAF.no.trim()){flowMsg('Enter the PAF # first.');return}
   const bad=PAF.parts.map((p,i)=>pafOk(p)?null:pafLabel(i)).filter(Boolean); if(bad.length){flowMsg('Fill in description and Part # of: '+bad.join(', '));return}
   const conf=await lockDialog(); if(!conf)return;
@@ -3483,6 +3506,49 @@ async function markPO(){
   PAF.po=po; PAF.ev.po={at:new Date().toISOString(),by:PLAT.uid||'',no:po}; if(PAF.status==='quoted')PAF.status='po'; markDirty(); await saveShared(); modeBar(); flowRender();
 }
 
+/* ---- Quotation checklist: a reminder for the CSR, never verified by the tool. Only its header (RFQ date + CSR, both from the PAF) gates the Mgr Approval. ---- */
+let CHKOPEN=false;
+const chkC=()=>{const e=PAF.ev||(PAF.ev={}); return e.chk||(e.chk={parts:{}})};
+const chkCsr=()=>PAF.cby||PLAT.uid||'';
+const chkOk=()=>!!(PAF.rfq&&(chkCsr()||!PLAT.user));   /* without a user identity (offline file) the CSR cannot be known: only the RFQ date is required */
+function chkWrapHtml(){
+  const ok=chkOk();
+  return `<button type="button" class="fc-btn chkbtn" data-fl="chk" aria-expanded="${CHKOPEN}" title="Quotation checklist (a reminder for the CSR)">Checklist ${ok?'✓':'· header incomplete'}</button>${CHKOPEN?chkPop():''}`;
+}
+function chkPop(){
+  const C=chkC(), ro=!!PAF.lock, dis=ro?' disabled':'';
+  const box=(k,label,extra)=>`<label class="chk-i${extra||''}"><input type="checkbox" data-ck="${k}"${C[k]?' checked':''}${dis}><span>${label}</span></label>`;
+  const rad=(name,v,label)=>`<label class="chk-i"><input type="radio" name="chk-${name}" data-ck="${name}" data-v="${v}"${C[name]===v?' checked':''}${dis}><span>${label}</span></label>`;
+  const rfq=PAF.rfq?hx(dUS(PAF.rfq)):'<span class="chk-miss">not set: fill RFQ received in the PAF header</span>';
+  const csr=chkCsr()?`<span data-uid="${hx(chkCsr())}">…</span>`:'<span>—</span>';
+  const parts=PAF.parts.map((p,i)=>{const P=(C.parts&&C.parts[i])||{};return `<div class="chk-part"><b>${hx(pafLabel(i))}${p.desc?' · '+hx(p.desc):''}</b>${[['drw','Add drawing'],['dim','Add dimensions'],['qty','Add quantity'],['grd','Add requested grade']].map(([f,l])=>`<label class="chk-i"><input type="checkbox" data-ck="p" data-i="${i}" data-f="${f}"${P[f]?' checked':''}${dis}><span>${l}</span></label>`).join('')}</div>`}).join('');
+  return `<div class="chk-pop" role="dialog" aria-label="Quotation checklist">
+    <div class="chk-t"><b>Quotation checklist</b><button type="button" class="chk-x" data-fl="chk" aria-label="Close">×</button></div>
+    <p class="chk-n">A reminder for the CSR: the tool does not check these items. Only the first two (from the PAF) are needed to enable the Mgr Approval.</p>
+    <div class="chk-f"><span>Date RFQ Email Received</span><b>${rfq}</b></div>
+    <div class="chk-f"><span>CSR that Completed PAF</span><b>${csr}</b></div>
+    ${box('opp','Opportunity Created')}${box('price','Price Check')}
+    <div class="chk-po"><b>PO Already Received?</b><label class="chk-i"><input type="checkbox" data-ck="po" data-v="yes"${C.poRecv==='yes'?' checked':''}${dis}><span>YES</span></label><label class="chk-i"><input type="checkbox" data-ck="po" data-v="no"${C.poRecv==='no'?' checked':''}${dis}><span>NO</span></label></div>
+    ${box('acu','Check for existing part in Acumatica')}
+    <div class="chk-h">If existing:</div>${rad('ex','existing','Existing part')}
+    ${C.ex==='existing'?box('exRev','Check for REV: call out if new',' sub')+box('exTab','Add copy of most recent PAF tab w/date',' sub')+box('exHist','Add historical sale and margin reports',' sub'):''}
+    <div class="chk-h">If not existing:</div>${rad('ex','new','New part (not existing)')}
+    ${C.ex==='new'?box('nlOpp','Checked Lost Opportunities to see if previously quoted; add PAF tab',' sub'):''}
+    <div class="chk-h">For each part requested make a tab with either part name or DWG # as title:</div>${parts}
+  </div>`;
+}
+function chkRefresh(){
+  const w=document.querySelector('.chk-wrap'); if(!w)return; const o=w.querySelector('.chk-pop'), top=o?o.scrollTop:0;
+  w.innerHTML=chkWrapHtml(); const n=w.querySelector('.chk-pop'); if(n){n.scrollTop=top;nameFill(n)}
+}
+document.addEventListener('change',e=>{const t=e.target,k=t&&t.dataset&&t.dataset.ck; if(!k||PAF.lock)return; const C=chkC();
+  if(k==='p'){const i=t.dataset.i; (C.parts[i]=C.parts[i]||{})[t.dataset.f]=t.checked}
+  else if(k==='po')C.poRecv=t.checked?t.dataset.v:'';
+  else if(k==='ex')C.ex=t.dataset.v;
+  else C[k]=t.checked;
+  markDirty(); chkRefresh()});
+document.addEventListener('click',e=>{if(CHKOPEN&&!e.target.closest('.chk-wrap')){CHKOPEN=false;chkRefresh()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&CHKOPEN){CHKOPEN=false;chkRefresh()}});
 function genDone(){if(PAF.lock||PAF.mode!=='quote')return;PAF.gen={at:new Date().toISOString(),by:PLAT.uid||'',stale:false};markDirty();flowRender();modeBar()}
 /* ---- cover: workflow card ---- */
 const lockMin=()=>{try{const d=new Date(PAF.lock.at);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}catch(e){return ''}};
@@ -3496,13 +3562,13 @@ function flowRender(){
   const stamp=(o,extra)=>o?`<small>${hx(when(o.at))}${o.by?' · <span data-uid="'+hx(o.by)+'">…</span>':''}${extra?' · '+hx(extra):''}</small>`:'';
   const box=(cls,label,sub)=>`<div class="fc-box ${cls}"><span class="fc-t">${label}</span>${sub||''}</div>`;
   const edge=inner=>`<div class="fc-edge">${inner}<i class="fc-arrow"></i></div>`;
-  const row1=`<div class="flowchart fc-r1" role="group" aria-label="Quotation sequence">${edge('<span class="fc-lbl">RFQ</span>'+(PAF.rfq?'<small>'+hx(dUS(PAF.rfq))+'</small>':''))}${box(PAF.gen?'done':'cur','Quoting cell',stamp(PAF.gen)+(PAF.gen&&PAF.gen.stale&&!PAF.lock?'<small class="stale">edited since generated</small>':''))}${edge('<button type="button" class="fc-btn" data-fl="gen">Generate PAF</button>')}${box(PAF.lock?'done':(PAF.gen?'cur':''),'Mgr Approval',PAF.lock?stamp(PAF.lock,PAF.lock.approver):'')}${`<div class="fc-edge fc-edge2">${(PAF.lock?'<span class="fc-lbl ok">Quote locked</span>':`<button type="button" class="fc-btn go" data-fl="lock" ${PAF.gen?'':'disabled title="Generate the PAF form first"'}>Lock quote</button>`)}<i class="fc-arrow"></i><div class="fc-below">${sentBox(ev)}</div></div>`}${box(ev.po?'done':(PAF.lock?'cur':''),'Customer',ev.po?stamp(ev.po,'PO '+ev.po.no):'')}</div>`;
+  const row1=`<div class="flowchart fc-r1" role="group" aria-label="Quotation sequence">${edge('<span class="fc-lbl">RFQ</span>'+(PAF.rfq?'<small>'+hx(dUS(PAF.rfq))+'</small>':''))}${box(PAF.gen&&chkOk()?'done':'cur','Quoting cell',stamp(PAF.gen)+(PAF.gen&&PAF.gen.stale&&!PAF.lock?'<small class="stale">edited since generated</small>':''))}${`<div class="fc-edge fc-edge2"><button type="button" class="fc-btn" data-fl="gen">Generate PAF</button><i class="fc-arrow"></i><div class="fc-below"><div class="chk-wrap">${chkWrapHtml()}</div></div></div>`}${box(PAF.lock?'done':(PAF.gen&&chkOk()?'cur':''),'Mgr Approval',PAF.lock?stamp(PAF.lock,PAF.lock.approver):'')}${`<div class="fc-edge fc-edge2">${(PAF.lock?'<span class="fc-lbl ok">Quote locked</span>':`<button type="button" class="fc-btn go" data-fl="lock" ${PAF.gen&&chkOk()?'':'disabled title="Generate the PAF form and complete the checklist header (RFQ date and CSR) first"'}>Lock quote</button>`)}<i class="fc-arrow"></i><div class="fc-below">${sentBox(ev)}</div></div>`}${box(ev.po?'done':(PAF.lock?'cur':''),'Customer',ev.po?stamp(ev.po,'PO '+ev.po.no):'')}</div>`;
   const inProd=PAF.mode==='prod';
   const row2=`<p class="fc-sec">After approval</p><div class="flowchart row2" role="group" aria-label="After approval">${edge('<span class="fc-lbl">Customer PO</span>')}${box(ev.po?'done':(!ev.review?'cur':''),'PO received',ev.po?stamp(ev.po,'PO '+ev.po.no):'')}${edge(inProd?'<span class="fc-lbl ok">Production open</span>':'<button type="button" class="fc-btn go" data-fl="prod">Open for Production</button>')}${box(ev.op?'done':(ev.review?'cur':''),'Production review',ev.review?stamp(ev.review):'')}${edge(`<button type="button" class="fc-btn go" data-fl="op" ${inProd?'':'disabled title="Open for Production first"'}>Generate Production Order</button>`)}${box(ev.op?'done':'','OP issued',ev.op?stamp(ev.op,'rev '+ev.op.rev):'')}</div>`;
   const rowP=`<div class="flowchart" role="group" aria-label="Material review sequence">${edge('<span class="fc-lbl">PO'+(ev.po&&ev.po.no?' '+hx(ev.po.no):'')+'</span>'+(ev.po?stamp(ev.po):''))}${box(ev.op?'done':'cur','Material allocation',ev.review?stamp(ev.review):'')}${edge('<button type="button" class="fc-btn go" data-fl="op">Generate Production Order</button>')}${box(ev.op?'done':'','Production',ev.op?stamp(ev.op,'rev '+ev.op.rev):'')}</div>`;
   const poRow=ev.po?'':`<div class="pafact"><div class="field" style="min-width:200px"><label for="fl-po">Customer PO #</label><input id="fl-po" type="text" maxlength="60" value="${hx(PAF.po)}" autocomplete="off"></div><button type="button" class="pbtn" data-fl="po">Mark PO received</button></div>`;
   if(PAF.mode==='quote'&&!PAF.lock){
-    h=`<section class="card"><header><h2>Quotation</h2><span class="tag">Draft</span></header><div class="body flowb">${row1}<p class="note" style="margin:0"><b>Generate PAF</b> creates the Excel PAF form for the commercial manager. <b>Lock quote</b> is the manager's approval and unlocks after the PAF is generated: inputs and results (the calculation memorial) are then frozen inside this PAF.</p><span class="msg" id="flow-msg" role="status"></span></div></section>`;
+    h=`<section class="card"><header><h2>Quotation</h2><span class="tag">Draft</span></header><div class="body flowb">${row1}<p class="note" style="margin:0"><b>Generate PAF</b> creates the Excel PAF form for the commercial manager. <b>Lock quote</b> is the manager's approval and unlocks after the PAF is generated and the checklist header is complete (RFQ date and CSR; the other checklist items are only a reminder for the CSR and are not checked by the tool): inputs and results (the calculation memorial) are then frozen inside this PAF.</p><span class="msg" id="flow-msg" role="status"></span></div></section>`;
   }else if(PAF.mode==='quote'){
     h=`<section class="card"><header><h2>Quotation · locked</h2><span class="tag">${hx(ST[PAF.status]||PAF.status)}</span></header><div class="body flowb">${row1}<p class="note" style="margin:0">Read-only: these are the official figures of the quote.</p>
       <div class="tablewrap"><table class="ft"><thead><tr><th>Part #</th><th>Description</th><th>Material</th><th class="r">Material $/pc</th><th class="r">Machining $/pc</th><th class="r">Packaging $/pc</th><th class="r">Qty</th><th class="r">Price $/pc</th><th class="r">Margin</th></tr></thead><tbody>${PAF.parts.map((p,i)=>{const r=fr[i]||{};return `<tr><td class="num">${hx(pafLabel(i))}</td><td>${hx(p.desc)}</td><td>${hx(r.src||'')}</td><td class="r num">${fm(r.mat)}</td><td class="r num">${fm(r.mach)}</td><td class="r num">${fm(r.pack)}</td><td class="r num">${r.qq||''}</td><td class="r num"><b>${fm(r.price)}</b></td><td class="r num">${fp(r.margin)}</td></tr>`}).join('')}</tbody></table></div>
@@ -3517,7 +3583,7 @@ function flowRender(){
   f.innerHTML=h; nameFill(f); modeBar();
 }
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('button[data-fl]');if(!b)return;const a=b.dataset.fl;
-  if(a==='gen')pafGenerate();else if(a==='lock')lockQuote();else if(a==='po')markPO();else if(a==='prod')modeSwitch('prod');else if(a==='op')pafGenerate(true);else if(a==='sentedit'){delete PAF.ev.sent;markDirty();Promise.resolve(saveShared()).then(flowRender)}});
+  if(a==='chk'){e.stopPropagation();CHKOPEN=!CHKOPEN;chkRefresh()}else if(a==='gen')pafGenerate();else if(a==='lock')lockQuote();else if(a==='po')markPO();else if(a==='prod')modeSwitch('prod');else if(a==='op')pafGenerate(true);else if(a==='sentedit'){delete PAF.ev.sent;markDirty();Promise.resolve(saveShared()).then(flowRender)}});
 document.addEventListener('change',e=>{const t=e.target;if(!t.dataset)return;
   if(t.dataset.fl==='sel'&&PAF.prod){PAF.prod.parts[+t.dataset.i].sel=+t.dataset.k;markDirty();flowRender()}
   else if(t.dataset.fl==='sent'){const v=parseUS(t.value);if(!v){if(t.value.trim()){t.value='';flowMsg('Enter the date as mm/dd/yy.')}return}if(PAF.lock&&v<lockMin()){t.value='';flowMsg('Quote sent date cannot be before the manager approval ('+dUS(lockMin())+').');return}PAF.ev=PAF.ev||{};if(v)PAF.ev.sent={date:v,at:new Date().toISOString(),by:PLAT.uid||''};else delete PAF.ev.sent;markDirty();Promise.resolve(saveShared()).then(()=>{flowRender();modeBar()})}
